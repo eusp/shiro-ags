@@ -4,6 +4,7 @@ import InternetToggle from "./InternetToggle"
 import BluetoothToggle from "./BluetoothToggle"
 import SoundControl from "./SoundControl"
 import MicrophoneControl from "./MicrophoneControl"
+import BrightnessControl from "./BrightnessControl"
 
 export function QuickSettingsList() {
     return (
@@ -16,6 +17,7 @@ export function QuickSettingsList() {
             <BluetoothToggle />
             <SoundControl />
             <MicrophoneControl />
+            <BrightnessControl />
         </box>
     )
 }

@@ -83,6 +83,16 @@ window.TopBar {
   }
 
   // ─────────────────────────────────────────────
+  // Keyboard Layout
+  // ─────────────────────────────────────────────
+  .kb-layout-label {
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+
+  // ─────────────────────────────────────────────
   // Systray
   // ─────────────────────────────────────────────
   .bar-right {
