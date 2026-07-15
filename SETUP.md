@@ -4,7 +4,7 @@ Esta guía te ayudará a instalar todas las dependencias necesarias para que tu 
 
 ## 1. Instalar Hyprland y Herramientas base
 ```bash
-sudo dnf install hyprland wl-clipboard cliphist pulseaudio-utils nm-connection-editor upower bluez gjs ddcutil
+sudo dnf install hyprland wl-clipboard cliphist pulseaudio-utils nm-connection-editor upower bluez gjs brightnessctl
 ```
 
 ## 2. Instalar AGS (Astal)
@@ -51,8 +51,7 @@ sudo dnf install jetbrains-mono-fonts-all # Luego instala manualmente la versió
 ### Notas Adicionales
 - **Visualizador de Audio**: Asegúrate de que `pipewire-pulse` esté instalado (generalmente lo está en Nobara) para que `parec` funcione correctamente.
 - **Fuentes**: La interfaz depende de `JetBrainsMono Nerd Font`. Si ves rectángulos en lugar de iconos, verifica que la fuente esté bien instalada y reconocida por el sistema.
-- **Brillo (RightMenu)**: El slider de brillo usa `ddcutil` (DDC/CI) para controlar el brillo del monitor externo por hardware. Requisitos:
-    - El monitor debe soportar DDC/CI y tenerlo **habilitado en su menú OSD** (busca una opción "DDC/CI" en Settings/Other Settings del propio monitor).
-    - Tu usuario necesita permisos de lectura/escritura sobre `/dev/i2c-*` (en Nobara suelen venir ya con ACL de usuario; si no, añade una regla udev o el usuario al grupo `i2c`).
-    - Si `ddcutil detect` no encuentra un display válido, el widget de brillo se oculta automáticamente (no rompe el panel).
+- **Brillo (RightMenu)**: El slider de brillo usa `brightnessctl` sobre el panel de retroiluminación real (`/sys/class/backlight`), pensado para pantallas de laptop. Requisitos:
+    - Debe existir un dispositivo en `/sys/class/backlight/` (`brightnessctl -c backlight -l` lo lista). Los monitores externos por VGA/HDMI genérico normalmente **no** exponen esto — en ese caso el widget se oculta automáticamente (no rompe el panel).
+    - Puede requerir pertenecer al grupo `video` para escribir en el backlight sin sudo: `sudo usermod -aG video $USER` (cierra sesión y vuelve a entrar).
 
