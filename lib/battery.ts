@@ -1,12 +1,12 @@
 // Lightweight stand-in for AstalBattery: talks to UPower over D-Bus directly
 // instead of relying on astal's native binding (only available bundled with
 // an old, unrelated astal-libs build that drifts out of sync with the
-// system's actual astal version). Also raises its own low-battery
-// notification through lib/notifd, since nothing else in this setup did.
+// system's actual astal version). Also emits its own "low-battery" signal —
+// widget/Shared/BatteryAlertOverlay.tsx reacts to it — since nothing else in
+// this setup warned about it at all.
 import GObject from "gi://GObject"
 import GLib from "gi://GLib?version=2.0"
 import Gio from "gi://Gio?version=2.0"
-import { notify } from "./notifd"
 
 const BUS_NAME = "org.freedesktop.UPower"
 const OBJECT_PATH = "/org/freedesktop/UPower/devices/DisplayDevice"
@@ -48,6 +48,12 @@ const Battery = GObject.registerClass(
             "is-present": GObject.ParamSpec.jsobject("is-present", "is-present", "is-present", GObject.ParamFlags.READABLE),
             state: GObject.ParamSpec.jsobject("state", "state", "state", GObject.ParamFlags.READABLE),
             "warning-level": GObject.ParamSpec.jsobject("warning-level", "warning-level", "warning-level", GObject.ParamFlags.READABLE),
+        },
+        Signals: {
+            // (percentage: uint, critical: boolean) — a screen-covering alert
+            // reacts to this directly; relying on sound alone doesn't help
+            // when the volume is muted or at 0.
+            "low-battery": { param_types: [GObject.TYPE_UINT, GObject.TYPE_BOOLEAN] },
         },
     },
     class Battery extends GObject.Object {
@@ -152,13 +158,7 @@ const Battery = GObject.registerClass(
             const pct = Math.round(this._percentage * 100)
             const critical = this._warningLevel >= WarningLevel.CRITICAL
 
-            notify({
-                appName: "Batería",
-                summary: critical ? `Batería crítica: ${pct}%` : `Batería baja: ${pct}%`,
-                body: critical ? "Conectá el cargador ya — se puede apagar en cualquier momento." : "Conectá el cargador pronto.",
-                icon: critical ? "battery-caution-symbolic" : "battery-low-symbolic",
-                expireTimeoutMs: 15000,
-            })
+            this.emit("low-battery", pct, critical)
         }
     },
 )

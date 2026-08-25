@@ -487,3 +487,101 @@ window.NotificationPopup {
   }
 }
 
+// ═══════════════════════════════════════════════
+// BATTERY ALERT (overlay de pantalla completa)
+// ═══════════════════════════════════════════════
+
+window.BatteryAlertOverlay {
+  // Fixed red (220, 38, 38) — not a --danger theme variable, since some
+  // themes (frozen-rukia) define "danger" as a muted rose/mauve rather
+  // than an actual red, and a battery alert should look the same
+  // regardless of which theme is active.
+
+  // The dim scrim lives directly on the window's own CSS node — a nested
+  // Box here never got allocated the full monitor size (its background
+  // stayed a small top-left patch regardless of expand/align/size-request),
+  // while the window's own background reliably paints the whole
+  // layer-shell surface.
+  background: rgba(220, 38, 38, 0.4);
+
+  .battery-alert-card {
+    background-color: rgba(var(--base-rgb), 0.98);
+
+    border: 1px solid rgba(220, 38, 38, 0.5);
+
+    border-radius: 16px;
+
+    padding: 32px 44px;
+
+    min-width: 300px;
+
+    box-shadow:
+      0 10px 40px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(255, 255, 255, 0.15);
+
+    &.critical {
+      border-color: rgba(220, 38, 38, 0.75);
+
+      box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(255, 255, 255, 0.3);
+    }
+  }
+
+  .battery-alert-icon {
+    font-size: 48px;
+
+    color: rgb(220, 38, 38);
+  }
+
+  .battery-alert-title {
+    font-family: "Inter", sans-serif;
+
+    font-size: 20px;
+
+    font-weight: 700;
+
+    color: var(--accent0);
+  }
+
+  .battery-alert-subtitle {
+    font-family: "Inter", sans-serif;
+
+    font-size: 13px;
+
+    color: rgba(var(--subtext0-rgb), 0.9);
+  }
+
+  .battery-alert-close {
+    all: unset;
+
+    margin-top: 8px;
+
+    padding: 6px 22px;
+
+    border-radius: 8px;
+
+    background: rgba(var(--primary-rgb), 0.12);
+
+    border: 1px solid rgba(var(--primary-rgb), 0.4);
+
+    color: var(--primary);
+
+    font-family: "Inter", sans-serif;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(var(--primary-rgb), 0.25);
+
+      border-color: var(--primary);
+
+      color: var(--accent0);
+    }
+  }
+}
+
