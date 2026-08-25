@@ -12,7 +12,6 @@ const DEFAULT_APPS = [
     { icon: "utilities-terminal-symbolic", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "ptyxis.desktop" },
     { icon: "folder-symbolic", command: "nautilus", tooltip: "Nautilus", matches: "nautilus", id: "org.gnome.Nautilus.desktop" },
     { icon: "firefox-symbolic", command: "firefox", tooltip: "Firefox", matches: "firefox", id: "firefox.desktop" },
-    { icon: "antigravity-symbolic", command: "antigravity", tooltip: "Antigravity", matches: "antigravity", id: "antigravity.desktop" },
     { icon: "steam-symbolic", command: "steam", tooltip: "Steam", matches: "steam", id: "steam.desktop" },
 ]
 
