@@ -42,7 +42,7 @@ function getMemUsage(): string {
 
 export default function SystemMonitor() {
     const menubutton = new Gtk.MenuButton()
-    menubutton.set_child(new Gtk.Image({ iconName: "utilities-system-monitor-symbolic" }))
+    menubutton.set_child(new Gtk.Image({ iconName: "computer-symbolic" }))
 
     const cpuLabel = new Gtk.Label({ xalign: 0, cssClasses: ["popover-label"] })
     const memLabel = new Gtk.Label({ xalign: 0, cssClasses: ["popover-label"] })

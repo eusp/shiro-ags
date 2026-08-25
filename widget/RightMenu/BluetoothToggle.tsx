@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import Bluetooth from "gi://AstalBluetooth"
+import Bluetooth from "../../lib/bluetooth"
 
 const bluetooth = Bluetooth.get_default()
 

@@ -37,6 +37,13 @@ const MAX_FREQ = 20000
 const ATTACK_SMOOTH = 1
 const DECAY_SMOOTH = 0.6
 const SPATIAL_SMOOTH = 2
+
+// Por debajo de este RMS se considera silencio: nos saltamos la FFT (que es
+// lo caro) y solo aplicamos un decaimiento liviano hacia el mínimo. El
+// pipeline de parec sigue corriendo siempre, pero la mayor parte del tiempo
+// no hay audio real sonando, así que esto evita gastar CPU en una FFT de
+// 2048 puntos sobre silencio.
+const SILENCE_RMS_THRESHOLD = 0.003
 // ====================
 
 // FFT simple
@@ -100,8 +107,27 @@ export function MediaVisualizer() {
     let subprocess: Gio.Subprocess | null = null
     let inputStream: Gio.DataInputStream | null = null
 
+    const decayToSilence = () => {
+        for (let i = 0; i < SEGMENT_COUNT; i++) {
+            const currentWidth = lastWidth[i]
+            const smoothedWidth = currentWidth + (2 - currentWidth) * DECAY_SMOOTH
+            lastWidth[i] = smoothedWidth
+            segments[i].set_size_request(Math.max(2, Math.floor(smoothedWidth)), 1)
+        }
+    }
+
     const updateVisualizer = (data: number[]) => {
         if (data.length !== FFT_SIZE) return
+
+        let sumSquares = 0
+        for (let i = 0; i < data.length; i++) sumSquares += data[i] * data[i]
+        const rms = Math.sqrt(sumSquares / data.length)
+
+        if (rms < SILENCE_RMS_THRESHOLD) {
+            decayToSilence()
+            return
+        }
+
         const spectrum = fft(data)
 
         // 1. Calcular anchos crudos para cada segmento

@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import Hyprland from "gi://AstalHyprland"
+import Hyprland from "../../lib/hyprland"
 import Pango from "gi://Pango"
 
 const hypr = Hyprland.get_default()

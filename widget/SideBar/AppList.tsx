@@ -1,12 +1,12 @@
 import { Gtk } from "ags/gtk4"
-import Hyprland from "gi://AstalHyprland"
-import Apps from "gi://AstalApps"
+import Hyprland, { Client } from "../../lib/hyprland"
+import Apps from "../../lib/apps"
 import Gio from "gi://Gio"
 import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
 import pins from "../../lib/pins"
 
 const hyprland = Hyprland.get_default()
-const apps = new Apps.Apps()
+const apps = new Apps()
 
 const DEFAULT_APPS = [
     { icon: "utilities-terminal-symbolic", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "ptyxis.desktop" },
@@ -27,7 +27,7 @@ function launchDetached(command: string) {
 }
 
 // !!! ASEGÚRATE DE QUE ESTA FUNCIÓN ESTÉ AQUÍ !!!
-function createContextMenu(widget: Gtk.Widget, client?: Hyprland.Client, appInfo?: any) {
+function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     const sections: MenuSection[] = []
     const match = appInfo?.matches || client?.class?.toLowerCase() || ""
     let desktopApp: Gio.DesktopAppInfo | null = null

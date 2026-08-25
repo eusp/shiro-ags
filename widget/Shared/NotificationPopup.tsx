@@ -1,6 +1,6 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
-import Notifd from "gi://AstalNotifd"
+import Notifd from "../../lib/notifd"
 import GLib from "gi://GLib?version=2.0"
 import { execAsync } from "ags/process"
 

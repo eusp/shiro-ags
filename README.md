@@ -6,6 +6,7 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
 
 - **Barra Superior (TopBar)**:
     - Indicadores de red, volumen, micrófono, batería y bluetooth.
+    - **Alerta de batería baja/crítica**: notificación automática (con repetición cada 5 min) si te quedás sin cargador, basada en el `WarningLevel` que ya calcula UPower.
     - Historial de portapapeles integrado (`cliphist`).
     - Monitor de recursos (CPU/RAM) en tiempo real.
     - **Panel flotante de Fecha/Hora**: Al hacer clic en el reloj central se despliega un popover premium con:
@@ -22,7 +23,7 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
     - Configuración rápida (Mute, Bluetooth, WiFi).
     - Centro de notificaciones.
     - Buscador de aplicaciones y **panel de aplicaciones ancladas** con funcionamiento reactivo.
-    - **Selector de temas integrado** con previsualización del wallpaper: cambia el tema de todo el escritorio en caliente (colores AGS, bordes Hyprland y fondo de pantalla) sin reiniciar nada.
+    - **Selector de temas integrado** con previsualización del wallpaper: cada tarjeta de tema tiene dos íconos (animado `.mp4` / estático `.png`) que aplican ese tema completo (colores AGS, bordes Hyprland y fondo de pantalla) en caliente, sin reiniciar nada.
     - Menú de apagado.
 
 ## 🎨 Sistema de Diseño
@@ -37,12 +38,27 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
 
 ## 🛠️ Tecnologías
 
-- **AGS (Astal/GTK4)**: Framework principal.
+- **AGS (Astal/GTK4)**: Framework principal — solo el core (`astal-io`, `astal-gtk4`).
 - **TypeScript**: Para una lógica robusta y tipada.
 - **SCSS**: Estilos modulares y variables.
 - **cliphist**: Para la gestión del portapapeles.
-- **AstalNotifd**: Para el centro de notificaciones en tiempo real.
 - **nm-connection-editor**: Para la configuración de red.
+
+### Sin dependencias de astal-libs
+
+Los módulos de integración con el sistema (`AstalHyprland`, `AstalNotifd`, `AstalBattery`, `AstalTray`, `AstalNetwork`, `AstalBluetooth`, `AstalMpris`, `AstalWp`, `AstalApps`) **no se usan** — solo estaban disponibles en un build viejo de `astal-libs` que se desincronizaba cada vez que se actualizaba Hyprland o el resto de astal. En su lugar, `lib/` implementa cada integración hablando directo con el sistema:
+
+- `lib/hyprland.ts` — `hyprctl` + el socket de eventos de Hyprland (`.socket2.sock`).
+- `lib/notifd.ts` — implementa el servicio D-Bus `org.freedesktop.Notifications` (AGS es su propio demonio de notificaciones).
+- `lib/battery.ts` — UPower por D-Bus.
+- `lib/tray.ts` — implementa `org.kde.StatusNotifierWatcher`/`StatusNotifierItem`/`DBusMenu` (AGS también hace de host del tray para todo el sistema).
+- `lib/network.ts` — NetworkManager por D-Bus.
+- `lib/bluetooth.ts` — bluez por D-Bus.
+- `lib/mpris.ts` — MPRIS2 por D-Bus.
+- `lib/wp.ts` — `wpctl`/`pactl subscribe` (WirePlumber no tiene una API D-Bus simple).
+- `lib/apps.ts` — `Gio.AppInfo` directo.
+
+Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión que Hyprland/el resto del sistema — el problema que rompía todo (errores en bucle, ~60% de CPU sostenido) al actualizar Hyprland no debería volver a pasar.
 
 ## 🚀 Instalación y Uso
 
@@ -55,7 +71,7 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
 
 ## 📂 Estructura del Proyecto
 
-- `lib/`: Servicios de estado persistente (`pins.ts`).
+- `lib/`: Servicios de estado persistente (`pins.ts`, `notesStore.ts`) y las integraciones de sistema propias descritas arriba (`hyprland.ts`, `notifd.ts`, `battery.ts`, `tray.ts`, `network.ts`, `bluetooth.ts`, `mpris.ts`, `wp.ts`, `apps.ts`).
 - `widget/`: Todos los componentes de la interfaz.
     - `Shared/`: Componentes reutilizables (ej. `MenuPopover.tsx`).
     - `TopBar/`: Widgets de la barra superior.

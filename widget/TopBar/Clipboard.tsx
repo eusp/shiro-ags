@@ -5,7 +5,7 @@ import { MenuPopover } from "../Shared/MenuPopover"
 export default function Clipboard() {
     const list = new Gtk.ListBox({ selectionMode: Gtk.SelectionMode.NONE, cssClasses: ["clipboard-list"] })
 
-    const rows: { row: Gtk.ListBoxRow, btn: Gtk.Button, label: Gtk.Label }[] = []
+    const rows: { row: Gtk.ListBoxRow, btn: Gtk.Button, label: Gtk.Label, handler: number | null }[] = []
     for (let i = 0; i < 10; i++) {
         const row = new Gtk.ListBoxRow({ visible: false })
         const btn = new Gtk.Button({ cssClasses: ["popover-item"] })
@@ -13,7 +13,7 @@ export default function Clipboard() {
         btn.set_child(label)
         row.set_child(btn)
         list.append(row)
-        rows.push({ row, btn, label })
+        rows.push({ row, btn, label, handler: null })
     }
 
     const scrolled = new Gtk.ScrolledWindow({ vexpand: true })
@@ -42,18 +42,18 @@ export default function Clipboard() {
                     r.label.label = textParts.join("\t").substring(0, 60)
 
                     // Actualizar evento
-                    r.btn.disconnect_by_func(r.btn.get_data("handler"))
-                    const handler = r.btn.connect("clicked", () => {
+                    if (r.handler !== null) r.btn.disconnect(r.handler)
+                    r.handler = r.btn.connect("clicked", () => {
                         execAsync(`bash -c 'echo "${id}" | cliphist decode | wl-copy'`)
                         popover.popdown()
                     })
-                    r.btn.set_data("handler", handler)
                     r.row.visible = true
                 } else {
                     r.row.visible = false
                 }
             })
-        } catch {
+        } catch (e) {
+            logError(e as Error, "clipboard: cliphist list failed")
             rows.forEach((r, i) => {
                 if (i === 0) {
                     r.label.label = "cliphist no disponible"

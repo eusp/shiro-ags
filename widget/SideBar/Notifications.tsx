@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4"
-import Notifd from "gi://AstalNotifd"
+import Notifd from "../../lib/notifd"
 import Pango from "gi://Pango"
 
 const notifd = Notifd.get_default()

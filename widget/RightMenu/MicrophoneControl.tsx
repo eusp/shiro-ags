@@ -1,6 +1,6 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import { execAsync } from "ags/process"
-import Wp from "gi://AstalWp"
+import Wp from "../../lib/wp"
 
 const wp = Wp.get_default()
 

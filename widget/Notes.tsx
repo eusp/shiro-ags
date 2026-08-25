@@ -1,6 +1,6 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
-import Hyprland from "gi://AstalHyprland"
+import Hyprland from "../lib/hyprland"
 import { getNotes, updateNotes } from "../lib/notesStore"
 
 const MIN_WIDTH = 180

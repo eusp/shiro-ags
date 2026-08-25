@@ -313,6 +313,36 @@ popover.clock-popover {
     }
   }
 
+  .popover-label {
+    color: var(--text);
+
+    font-size: 12px;
+
+    font-family: "Inter", sans-serif;
+
+    font-weight: 500;
+  }
+
+  .dim {
+    color: rgba(var(--subtext0-rgb), 0.7);
+
+    font-size: 12px;
+
+    font-family: "Inter", sans-serif;
+  }
+
+  .clipboard-list {
+    background: transparent;
+  }
+
+  .clip-item-label {
+    color: var(--text);
+
+    font-size: 12px;
+
+    font-family: "Inter", sans-serif;
+  }
+
   .popover-separator {
     background-color: rgba(var(--primary-muted-rgb), 0.25);
 
