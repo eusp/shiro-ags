@@ -16,7 +16,7 @@ export default function PowerMenu() {
                     <button onClicked={() => execAsync("systemctl suspend")}>
                         <label label="Suspender" />
                     </button>
-                    <button onClicked={() => execAsync("hyprctl dispatch exit")}>
+                    <button onClicked={() => execAsync(["hyprctl", "dispatch", "hl.dsp.exit()"])}>
                         <label label="Cerrar sesión" />
                     </button>
                 </box>

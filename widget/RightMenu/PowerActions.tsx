@@ -3,7 +3,7 @@ import { execAsync } from "ags/process"
 
 export default function PowerActions() {
     const logout = () => {
-        execAsync("hyprctl dispatch exit").catch(() => {
+        execAsync(["hyprctl", "dispatch", "hl.dsp.exit()"]).catch(() => {
             execAsync("pkill -u $USER").catch(() => { })
         })
     }
