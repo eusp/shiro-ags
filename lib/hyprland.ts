@@ -23,10 +23,57 @@ function hyprctlJson(...args: string[]): any {
     }
 }
 
+// Hyprland >= 0.55's `hyprctl dispatch <str>` evaluates <str> as Lua
+// (`hl.dispatch(<str>)`) instead of the old flat "dispatcher name + args" CLI
+// syntax. Translate the handful of classic dispatcher calls this file makes
+// into their hl.dsp.* equivalents so callers below can keep passing the old
+// (name, args) shape unchanged.
+function luaStr(s: string): string {
+    return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+}
+
+function luaWorkspace(s: string): string {
+    return /^-?\d+$/.test(s) ? s : luaStr(s)
+}
+
+function toLuaDispatchExpr(dispatcher: string, args: string): string | null {
+    switch (dispatcher) {
+        case "workspace":
+            return `hl.dsp.focus({ workspace = ${luaWorkspace(args)} })`
+        case "focuswindow":
+            return `hl.dsp.focus({ window = ${luaStr(args)} })`
+        case "togglefloating":
+            return args
+                ? `hl.dsp.window.float({ action = "toggle", window = ${luaStr(args)} })`
+                : `hl.dsp.window.float({ action = "toggle" })`
+        case "closewindow":
+            return args ? `hl.dsp.window.close({ window = ${luaStr(args)} })` : `hl.dsp.window.close()`
+        case "movetoworkspacesilent": {
+            const [workspace, window] = args.split(/,(?=address:)/)
+            return `hl.dsp.window.move({ workspace = ${luaWorkspace(workspace)}, follow = false, window = ${luaStr(window)} })`
+        }
+        case "movetoworkspace": {
+            const [workspace, window] = args.split(/,(?=address:)/)
+            return `hl.dsp.window.move({ workspace = ${luaWorkspace(workspace)}, window = ${luaStr(window)} })`
+        }
+        default:
+            return null
+    }
+}
+
 function hyprctlDispatch(dispatcher: string, args = "") {
+    const expr = toLuaDispatchExpr(dispatcher, args)
+    if (!expr) {
+        logError(new Error(`unknown dispatcher "${dispatcher}"`), "hyprland: dispatch failed")
+        return
+    }
     try {
-        const argv = args ? ["hyprctl", "dispatch", dispatcher, args] : ["hyprctl", "dispatch", dispatcher]
-        Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+        // hyprctl prints "ok" on success; pipe it instead of NONE so it doesn't
+        // leak into whatever terminal ags happens to be attached to.
+        Gio.Subprocess.new(
+            ["hyprctl", "dispatch", expr],
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+        )
     } catch (e) {
         logError(e as Error, "hyprland: dispatch failed")
     }
