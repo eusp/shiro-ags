@@ -7,6 +7,7 @@ import TopBar from "./widget/TopBar"
 import SideBar from "./widget/SideBar"
 import RightMenu from "./widget/RightMenu"
 import Notes from "./widget/Notes"
+import NotificationPopup from "./widget/Shared/NotificationPopup"
 
 // ─── Bootstrap theme CSS vars on startup ─────────────────────────────────────
 // The SCSS is compiled with the current theme at build time, but we also inject
@@ -84,6 +85,7 @@ app.start({
             TopBar(monitor)
             SideBar(monitor)
             RightMenu(monitor)
+            NotificationPopup(monitor)
         })
 
         if (monitors[0]) Notes(monitors[0])

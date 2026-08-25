@@ -436,3 +436,54 @@ popover.clock-popover {
   }
 }
 
+// ═══════════════════════════════════════════════
+// NOTIFICATION TOAST (popup transitorio, esquina superior derecha)
+// ═══════════════════════════════════════════════
+
+window.NotificationPopup {
+  background: transparent;
+
+  .popup-notif-content {
+    background-color: rgba(var(--base-rgb), 0.98);
+
+    border: 1px solid rgba(var(--primary-rgb), 0.4);
+
+    border-radius: 12px;
+
+    padding: 14px 20px;
+
+    min-width: 320px;
+
+    box-shadow:
+      0 6px 28px rgba(0, 0, 0, 0.4),
+      0 0 24px rgba(var(--primary-rgb), 0.15),
+      inset 0 1px 0 rgba(var(--accent0-rgb), 0.05);
+  }
+
+  .popup-notif-icon {
+    font-size: 26px;
+
+    color: var(--primary);
+  }
+
+  .popup-notif-summary {
+    font-family: "Inter", sans-serif;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    color: var(--accent0);
+  }
+
+  .popup-notif-body {
+    font-family: "Inter", sans-serif;
+
+    font-size: 12px;
+
+    color: rgba(var(--subtext0-rgb), 0.9);
+
+    margin-top: 2px;
+  }
+}
+

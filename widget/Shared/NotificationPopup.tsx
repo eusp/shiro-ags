@@ -35,6 +35,8 @@ export default function NotificationPopup(gdkmonitor: Gdk.Monitor) {
             visible={false}
             gdkmonitor={gdkmonitor}
             anchor={TOP | RIGHT}
+            marginTop={40}
+            marginRight={12}
             application={app}
             layer={Astal.Layer.OVERLAY}
         >
@@ -44,18 +46,32 @@ export default function NotificationPopup(gdkmonitor: Gdk.Monitor) {
 
     let timeoutId: number | null = null
 
+    // execAsync throws synchronously (not a rejected promise) when the
+    // command itself doesn't exist — a bare .catch() chain never attaches
+    // in that case, so a missing `canberra-play` was throwing straight out
+    // of showPopup() and skipping `popupWindow.visible = true` entirely.
+    const SOUND_CANDIDATES = [
+        ["canberra-play", "-i", "message"],
+        ["paplay", "/usr/share/sounds/freedesktop/stereo/message.oga"],
+        ["play", "/usr/share/sounds/freedesktop/stereo/message.oga"],
+    ]
+
+    const playSound = (i = 0) => {
+        if (i >= SOUND_CANDIDATES.length) return
+        try {
+            execAsync(SOUND_CANDIDATES[i]).catch(() => playSound(i + 1))
+        } catch {
+            playSound(i + 1)
+        }
+    }
+
     const showPopup = (n: any) => {
         // Update labels
         icon.icon_name = n.app_icon || "dialog-information-symbolic"
         summary.label = n.summary || ""
         body.label = n.body || ""
 
-        // Play sound
-        execAsync("canberra-play -i message").catch(() => 
-            execAsync("paplay /usr/share/sounds/freedesktop/stereo/message.oga").catch(() => 
-                execAsync("play /usr/share/sounds/freedesktop/stereo/message.oga").catch(() => {})
-            )
-        )
+        playSound()
 
         // Show window
         popupWindow.visible = true
