@@ -15,7 +15,9 @@
     "Stardew Valley.desktop",
     "com.nomm.Nomm.desktop",
     "moe.launcher.the-honkers-railway-launcher.desktop",
-    "lmstudio.desktop"
+    "lmstudio.desktop",
+    "nautilus-autorun-software.desktop",
+    "Satisfactory.desktop"
   ],
   "sidebar": [
     "ptyxis.desktop",

@@ -1,0 +1,51 @@
+window.Notes {
+  background: transparent;
+
+  .notes-container {
+    background-color: rgba(var(--surface0-rgb), 0.55);
+    border: 1px solid rgba(var(--primary-rgb), 0.25);
+    border-radius: 10px;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .notes-handle {
+    min-height: 20px;
+    padding: 4px 8px;
+    background-color: rgba(var(--primary-rgb), 0.16);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom: 1px solid rgba(var(--primary-rgb), 0.2);
+  }
+
+  .notes-title {
+    color: rgba(var(--text-rgb), 0.8);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .notes-scroll {
+    background: transparent;
+  }
+
+  .notes-textview {
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+
+    text {
+      background: transparent;
+    }
+  }
+
+  .notes-resize-zone {
+    min-height: 14px;
+    padding: 0 4px 4px 0;
+  }
+
+  .notes-resize-grip {
+    min-width: 10px;
+    min-height: 10px;
+    background-color: rgba(var(--subtext0-rgb), 0.4);
+    border-radius: 2px;
+  }
+}
