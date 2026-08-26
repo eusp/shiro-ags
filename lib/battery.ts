@@ -74,7 +74,12 @@ const Battery = GObject.registerClass(
 
         constructor() {
             super()
-            this._connect()
+            // Deferred so the UPower D-Bus setup doesn't block the UI from
+            // becoming interactive at startup.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._connect()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get percentage() {

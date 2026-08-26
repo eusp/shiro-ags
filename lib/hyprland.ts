@@ -124,8 +124,14 @@ const Hyprland = GObject.registerClass(
 
         constructor() {
             super()
-            this._refresh()
-            this._listen()
+            // Deferred: `_refresh()` shells out to `hyprctl` synchronously,
+            // which would otherwise block the UI from becoming interactive
+            // at startup.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._refresh()
+                this._listen()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get clients() {

@@ -281,7 +281,14 @@ const Tray = GObject.registerClass(
 
         constructor() {
             super()
-            this._own()
+            // Deferred: owning the StatusNotifierWatcher name and fetching each
+            // tray item's synchronous DBusMenu layout can take a noticeable
+            // moment, which would otherwise block the UI from becoming
+            // interactive at startup.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._own()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get items(): TrayItem[] {

@@ -98,7 +98,12 @@ const Notifd = GObject.registerClass(
 
         constructor() {
             super()
-            this._own()
+            // Deferred so owning org.freedesktop.Notifications doesn't block
+            // the UI from becoming interactive at startup.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._own()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get_notifications(): Notification[] {

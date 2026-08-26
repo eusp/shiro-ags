@@ -3,6 +3,7 @@
 // bundled with an old, unrelated astal-libs build that drifts out of sync
 // with the system's actual astal version).
 import GObject from "gi://GObject"
+import GLib from "gi://GLib?version=2.0"
 import Gio from "gi://Gio?version=2.0"
 
 const PLAYER_OBJECT_PATH = "/org/mpris/MediaPlayer2"
@@ -97,7 +98,12 @@ const Mpris = GObject.registerClass(
 
         constructor() {
             super()
-            this._connect()
+            // Deferred so the session-bus ListNames sync call doesn't block the
+            // UI from becoming interactive at startup.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._connect()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get players(): InstanceType<typeof Player>[] {

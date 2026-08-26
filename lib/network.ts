@@ -159,7 +159,13 @@ const Network = GObject.registerClass(
 
         constructor() {
             super()
-            this._connect()
+            // Deferred: NM D-Bus setup is synchronous and can take a noticeable
+            // moment, which would otherwise block the whole UI from becoming
+            // interactive until every panel singleton like this one finishes.
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._connect()
+                return GLib.SOURCE_REMOVE
+            })
         }
 
         get wifi() {
