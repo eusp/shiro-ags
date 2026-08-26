@@ -6,6 +6,9 @@ import TopBar from "./widget/TopBar";
 import SideBar from "./widget/SideBar";
 import RightMenu from "./widget/RightMenu";
 import Notes from "./widget/Notes";
+import NotificationPopup from "./widget/Shared/NotificationPopup";
+import BatteryAlertOverlay from "./widget/Shared/BatteryAlertOverlay";
+import Battery from "./lib/battery";
 // ─── Bootstrap theme CSS vars on startup ─────────────────────────────────────
 // The SCSS is compiled with the current theme at build time, but we also inject
 // CSS custom properties so that ThemeSelector can hot-reload colors at runtime.
@@ -69,6 +72,19 @@ function loadStartupTheme() {
 }
 app.start({
     css: style,
+    // Lets you fire the low-battery overlay on demand for testing, e.g.:
+    //   ags request battery-alert            (20%, non-critical)
+    //   ags request battery-alert 5 critical
+    requestHandler(argv, response) {
+        if (argv[0] === "battery-alert") {
+            const pct = parseInt(argv[1] ?? "20", 10);
+            const critical = argv[2] === "critical";
+            Battery.get_default().emit("low-battery", pct, critical);
+            response(`ok: ${critical ? "critical" : "low"} ${pct}%`);
+            return;
+        }
+        response(`unknown request: ${argv.join(" ")}`);
+    },
     main() {
         loadStartupTheme();
         const monitors = app.get_monitors();
@@ -76,6 +92,8 @@ app.start({
             TopBar(monitor);
             SideBar(monitor);
             RightMenu(monitor);
+            NotificationPopup(monitor);
+            BatteryAlertOverlay(monitor);
         });
         if (monitors[0])
             Notes(monitors[0]);

@@ -1,13 +1,13 @@
 import { Gtk } from "ags/gtk4";
 import { execAsync } from "ags/process";
-import Hyprland from "gi://AstalHyprland";
-import Apps from "gi://AstalApps";
+import Hyprland from "../../lib/hyprland";
+import Apps from "../../lib/apps";
 import { MenuPopover } from "../Shared/MenuPopover";
 import pins from "../../lib/pins";
 const { Gio, GLib } = imports.gi;
 const ByteArray = imports.byteArray;
 const hyprland = Hyprland.get_default();
-const apps = new Apps.Apps();
+const apps = new Apps();
 function launchDetached(command) {
     const { Gio } = imports.gi;
     try {

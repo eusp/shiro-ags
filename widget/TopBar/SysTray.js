@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4";
-import Tray from "gi://AstalTray";
+import Tray from "../../lib/tray";
 const tray = Tray.get_default();
 export default function SysTray() {
     const list = new Gtk.Box({

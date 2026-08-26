@@ -27,7 +27,14 @@ export default function NetworkIndicator() {
 
     const wifiList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
 
+    const wifiToggleBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8, cssClasses: ["popover-item"] })
+    const wifiToggleLabel = new Gtk.Label({ label: "Wi-Fi", xalign: 0, hexpand: true })
+    const wifiSwitch = new Gtk.Switch({ valign: Gtk.Align.CENTER, cssClasses: ["wifi-switch"] })
+    wifiToggleBox.append(wifiToggleLabel)
+    wifiToggleBox.append(wifiSwitch)
+
     container.append(statusLabel)
+    container.append(wifiToggleBox)
     container.append(refreshBtn)
     container.append(new Gtk.Separator({ cssClasses: ["popover-separator"] }))
     container.append(wifiList)
@@ -41,8 +48,8 @@ export default function NetworkIndicator() {
 
         while (wifiList.get_first_child()) wifiList.remove(wifiList.get_first_child()!)
 
-        if (network.wifi) {
-            network.wifi.access_points.slice(0, 6).forEach(ap => {
+        if (network.wifiDevice) {
+            network.wifiDevice.access_points.slice(0, 6).forEach(ap => {
                 const btnContent = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 10 })
                 btnContent.append(new Gtk.Label({ label: ap.security > 0 ? "󰌾" : "󰖩" }))
                 btnContent.append(new Gtk.Label({ label: ap.ssid || "Red oculta", xalign: 0, hexpand: true }))
@@ -63,13 +70,27 @@ export default function NetworkIndicator() {
         execAsync("nmcli device wifi rescan").then(() => updateUI())
     })
 
+    let syncingWifiSwitch = false
+    const updateWifiSwitch = () => {
+        syncingWifiSwitch = true
+        wifiSwitch.set_active(!!network.wifiEnabled)
+        syncingWifiSwitch = false
+    }
+    wifiSwitch.connect("notify::active", () => {
+        if (syncingWifiSwitch) return
+        network.setWifiEnabled(wifiSwitch.active)
+        if (wifiSwitch.active) network.wifiDevice?.scan()
+    })
+
     const popover = MenuPopover(menubutton, [{ title: "Red", customChild: container }])
     menubutton.set_popover(popover)
 
     network.connect("notify::primary", updateUI)
     network.connect("notify::connectivity", updateUI)
-    if (network.wifi) network.wifi.connect("notify::access-points", updateUI)
+    network.connect("notify::wifi-enabled", updateWifiSwitch)
+    if (network.wifiDevice) network.wifiDevice.connect("notify::access-points", updateUI)
 
     updateUI()
+    updateWifiSwitch()
     return menubutton
 }

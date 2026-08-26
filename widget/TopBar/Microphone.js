@@ -1,6 +1,6 @@
 import { Gtk } from "ags/gtk4";
 import GLib from "gi://GLib";
-import Wp from "gi://AstalWp";
+import Wp from "../../lib/wp";
 import { MenuPopover } from "../Shared/MenuPopover";
 const wp = Wp.get_default();
 export default function Microphone() {

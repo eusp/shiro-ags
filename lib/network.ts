@@ -23,6 +23,11 @@ function proxy(busName: string, path: string, iface: string): any {
     return Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null, busName, path, iface, null)
 }
 
+function setProp(busName: string, path: string, iface: string, propName: string, value: GLib.Variant) {
+    const p = proxy(busName, path, "org.freedesktop.DBus.Properties")
+    p.call_sync("Set", new GLib.Variant("(ssv)", [iface, propName, value]), Gio.DBusCallFlags.NONE, -1, null)
+}
+
 function readProp(p: any, name: string): any {
     const v = p?.get_cached_property(name)
     return v ? v.deep_unpack() : null
@@ -135,6 +140,7 @@ const Network = GObject.registerClass(
             wifi: GObject.ParamSpec.jsobject("wifi", "", "", GObject.ParamFlags.READABLE),
             wired: GObject.ParamSpec.jsobject("wired", "", "", GObject.ParamFlags.READABLE),
             connectivity: GObject.ParamSpec.jsobject("connectivity", "", "", GObject.ParamFlags.READABLE),
+            "wifi-enabled": GObject.ParamSpec.jsobject("wifi-enabled", "", "", GObject.ParamFlags.READABLE),
         },
     },
     class Network extends GObject.Object {
@@ -149,6 +155,7 @@ const Network = GObject.registerClass(
         private _wiredActive = false
         private _connectivity = Connectivity.UNKNOWN
         private _primaryType: string | null = null
+        private _wifiEnabled = true
 
         constructor() {
             super()
@@ -159,12 +166,31 @@ const Network = GObject.registerClass(
             return this._wifiDevice && this._wifiDevice.ssid ? this._wifiDevice : null
         }
 
+        // Unlike `wifi` (only set once actively connected to an SSID), this is
+        // the wifi device as soon as it exists, so scan results / the AP list
+        // are available while the radio is on but not yet connected to anything.
+        get wifiDevice() {
+            return this._wifiDevice
+        }
+
         get wired() {
             return this._wiredActive
         }
 
         get connectivity() {
             return this._connectivity
+        }
+
+        get wifiEnabled() {
+            return this._wifiEnabled
+        }
+
+        setWifiEnabled(enabled: boolean) {
+            try {
+                setProp(NM_BUS, NM_PATH, NM_IFACE, "WirelessEnabled", new GLib.Variant("b", enabled))
+            } catch (e) {
+                logError(e as Error, "network: could not toggle wifi radio")
+            }
         }
 
         get primary(): { type: string; wifi: InstanceType<typeof WifiDevice> | null } | null {
@@ -205,6 +231,8 @@ const Network = GObject.registerClass(
                             if (active !== this._wiredActive) {
                                 this._wiredActive = active
                                 this.notify("wired")
+                                // Ethernet just came up: prefer the wired link and free the wifi radio.
+                                if (active && this._wifiEnabled) this.setWifiEnabled(false)
                             }
                         }
                         devProxy.connect("g-properties-changed", refreshWired)
@@ -221,6 +249,12 @@ const Network = GObject.registerClass(
             const known: Record<string, string> = { "802-11-wireless": "WIFI", "802-3-ethernet": "WIRED" }
             this._primaryType = type ? known[type] || type.toUpperCase() : null
             this._connectivity = readProp(this._nmProxy, "Connectivity") ?? Connectivity.UNKNOWN
+
+            const wifiEnabled = readProp(this._nmProxy, "WirelessEnabled")
+            if (wifiEnabled !== null && wifiEnabled !== this._wifiEnabled) {
+                this._wifiEnabled = wifiEnabled
+                this.notify("wifi-enabled")
+            }
 
             this.notify("primary")
             this.notify("connectivity")

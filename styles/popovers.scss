@@ -351,6 +351,20 @@ popover.clock-popover {
     margin: 4px 0;
   }
 
+  switch.wifi-switch {
+    min-width: 30px;
+
+    min-height: 16px;
+
+    padding: 0;
+
+    slider {
+      min-width: 12px;
+
+      min-height: 12px;
+    }
+  }
+
   // ═══════════════════════════════════════════════
   // VOLUME SLIDER
   // ═══════════════════════════════════════════════

@@ -1,7 +1,7 @@
 import { Gtk } from "ags/gtk4";
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
-import Bluetooth from "gi://AstalBluetooth";
+import Bluetooth from "../../lib/bluetooth";
 import { MenuPopover } from "../Shared/MenuPopover";
 const DEVICES_FILE = `${GLib.get_home_dir()}/.config/ags/bt-devices.json`;
 const loadDevices = () => {

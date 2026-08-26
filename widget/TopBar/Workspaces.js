@@ -1,5 +1,5 @@
 import { jsx as _jsx } from "ags/gtk4/jsx-runtime";
-import Hyprland from "gi://AstalHyprland";
+import Hyprland from "../../lib/hyprland";
 const hypr = Hyprland.get_default();
 export default function Workspaces() {
     const buttons = [];

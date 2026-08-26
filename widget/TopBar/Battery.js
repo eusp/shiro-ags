@@ -1,5 +1,5 @@
 import { Gtk } from "ags/gtk4";
-import Battery from "gi://AstalBattery";
+import Battery from "../../lib/battery";
 const battery = Battery.get_default();
 export default function BatteryIndicator() {
     // Crear widgets nativos

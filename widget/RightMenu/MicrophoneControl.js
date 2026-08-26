@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "ags/gtk4/jsx-runtime";
 import { Gtk } from "ags/gtk4";
 import { execAsync } from "ags/process";
-import Wp from "gi://AstalWp";
+import Wp from "../../lib/wp";
 const wp = Wp.get_default();
 export default function MicrophoneControl() {
     const mic = wp?.defaultMicrophone;

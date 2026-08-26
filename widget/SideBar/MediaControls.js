@@ -1,6 +1,6 @@
 import { jsx as _jsx } from "ags/gtk4/jsx-runtime";
 import { Gtk } from "ags/gtk4";
-import Mpris from "gi://AstalMpris";
+import Mpris from "../../lib/mpris";
 import Gio from "gi://Gio?version=2.0";
 const mpris = Mpris.get_default();
 export function MediaControls() {

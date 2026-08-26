@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "ags/gtk4/jsx-runtime";
 import { Gtk } from "ags/gtk4";
-import Network from "gi://AstalNetwork";
+import Network from "../../lib/network";
 const network = Network.get_default();
 export default function InternetToggle() {
     const label = new Gtk.Label({

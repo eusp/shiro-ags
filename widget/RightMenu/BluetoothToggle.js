@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "ags/gtk4/jsx-runtime";
 import { Gtk } from "ags/gtk4";
-import Bluetooth from "gi://AstalBluetooth";
+import Bluetooth from "../../lib/bluetooth";
 const bluetooth = Bluetooth.get_default();
 export default function BluetoothToggle() {
     const label = new Gtk.Label({

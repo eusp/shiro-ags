@@ -1,16 +1,15 @@
 import { Gtk } from "ags/gtk4";
-import Hyprland from "gi://AstalHyprland";
-import Apps from "gi://AstalApps";
+import Hyprland from "../../lib/hyprland";
+import Apps from "../../lib/apps";
 import Gio from "gi://Gio";
 import { MenuPopover } from "../Shared/MenuPopover";
 import pins from "../../lib/pins";
 const hyprland = Hyprland.get_default();
-const apps = new Apps.Apps();
+const apps = new Apps();
 const DEFAULT_APPS = [
     { icon: "utilities-terminal-symbolic", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "ptyxis.desktop" },
     { icon: "folder-symbolic", command: "nautilus", tooltip: "Nautilus", matches: "nautilus", id: "org.gnome.Nautilus.desktop" },
     { icon: "firefox-symbolic", command: "firefox", tooltip: "Firefox", matches: "firefox", id: "firefox.desktop" },
-    { icon: "antigravity-symbolic", command: "antigravity", tooltip: "Antigravity", matches: "antigravity", id: "antigravity.desktop" },
     { icon: "steam-symbolic", command: "steam", tooltip: "Steam", matches: "steam", id: "steam.desktop" },
 ];
 function launchDetached(command) {

@@ -2,7 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "ags/gtk4/jsx-runtime";
 import { Gtk } from "ags/gtk4";
 import GLib from "gi://GLib?version=2.0";
 import Gdk from "gi://Gdk?version=4.0";
-import Notifd from "gi://AstalNotifd";
+import Notifd from "../../lib/notifd";
 const notifd = Notifd.get_default();
 function getWidgetExactCoords(widget) {
     const root = widget.get_root();

@@ -14,9 +14,11 @@ function makeVar(initial) {
 }
 // ─── State ───────────────────────────────────────────────────────────────────
 const SHIRO_DIR = `${GLib.get_home_dir()}/.config/shiro-theme`;
+const WALLPAPER_MODE_FILE = `${SHIRO_DIR}/wallpaper-mode`;
 const currentThemeName = makeVar(readCurrentTheme());
 const isApplying = makeVar(false);
 export const themeExpanded = makeVar(false);
+const wallpaperMode = makeVar(readWallpaperMode());
 let activeThemeProvider = null;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function readCurrentTheme() {
@@ -28,6 +30,17 @@ function readCurrentTheme() {
     }
     catch {
         return "unknown";
+    }
+}
+function readWallpaperMode() {
+    try {
+        const [ok, bytes] = GLib.file_get_contents(WALLPAPER_MODE_FILE);
+        if (!ok)
+            return "animated";
+        return new TextDecoder().decode(bytes).trim() === "static" ? "static" : "animated";
+    }
+    catch {
+        return "animated";
     }
 }
 function hexToRgbParts(hex) {
@@ -125,13 +138,15 @@ function reloadWallpaper() {
     const script = `${GLib.get_home_dir()}/.config/hypr/scripts/change-wallpaper.sh`;
     execAsync(["bash", script]).catch(() => { });
 }
-function applyTheme(slug, data) {
+function applyTheme(slug, data, mode) {
     if (isApplying.get())
         return;
     isApplying.set(true);
     hotReload(data);
     currentThemeName.set(slug);
     GLib.file_set_contents(`${SHIRO_DIR}/current-theme`, slug);
+    wallpaperMode.set(mode);
+    GLib.file_set_contents(WALLPAPER_MODE_FILE, mode);
     execAsync(`node ${SHIRO_DIR}/build.js`)
         .then(() => {
         execAsync(["hyprctl", "reload"]).catch(() => { });
@@ -201,11 +216,37 @@ function WallpaperThumbnail(slug, baseColor) {
     });
     return area;
 }
+// ─── Wallpaper Mode Icon Button ─────────────────────────────────────────────
+// Applies this card's theme with the given wallpaper mode (animated/static).
+// These are the card's only clickable elements — the card itself is now a
+// plain (non-interactive) box, not a button.
+function WallpaperModeButton(iconName, tooltip, mode, slug, data, activeSlug) {
+    const btn = new Gtk.Button({
+        cssClasses: ["wallpaper-mode-icon-btn"],
+        tooltipText: tooltip,
+        child: new Gtk.Image({ iconName, pixelSize: 11 }),
+    });
+    const update = () => {
+        const active = activeSlug.get() === slug && wallpaperMode.get() === mode;
+        if (active)
+            btn.add_css_class("active");
+        else
+            btn.remove_css_class("active");
+    };
+    update();
+    activeSlug.subscribe(update);
+    wallpaperMode.subscribe(update);
+    btn.connect("clicked", () => applyTheme(slug, data, mode));
+    return btn;
+}
 // ─── Theme Card ───────────────────────────────────────────────────────────────
 function ThemeCard(slug, data, activeSlug) {
     const wallpaper = WallpaperThumbnail(slug, data.base);
     const nameLabel = new Gtk.Label({ label: data.name || slug, xalign: 0, hexpand: true, cssClasses: ["theme-card-name"] });
     const activeBadge = new Gtk.Label({ label: "activo", cssClasses: ["theme-card-active-badge"], visible: false });
+    const modeIcons = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 4, cssClasses: ["wallpaper-mode-icons"] });
+    modeIcons.append(WallpaperModeButton("video-x-generic-symbolic", "Aplicar con fondo animado (.mp4)", "animated", slug, data, activeSlug));
+    modeIcons.append(WallpaperModeButton("image-x-generic-symbolic", "Aplicar con fondo estático (.png)", "static", slug, data, activeSlug));
     const nameRow = new Gtk.Box({
         orientation: Gtk.Orientation.HORIZONTAL,
         spacing: 6,
@@ -215,26 +256,25 @@ function ThemeCard(slug, data, activeSlug) {
     });
     nameRow.append(nameLabel);
     nameRow.append(activeBadge);
-    // Overlay name on top of the wallpaper image
-    const cardInner = new Gtk.Overlay();
-    cardInner.set_child(wallpaper);
-    cardInner.add_overlay(nameRow);
-    const btn = new Gtk.Button({ cssClasses: ["theme-card"], child: cardInner, hexpand: true });
+    nameRow.append(modeIcons);
+    // Overlay name + mode buttons on top of the wallpaper image
+    const card = new Gtk.Overlay({ cssClasses: ["theme-card"] });
+    card.set_child(wallpaper);
+    card.add_overlay(nameRow);
     const updateActive = () => {
         const active = activeSlug.get() === slug;
         if (active) {
-            btn.add_css_class("active-theme");
+            card.add_css_class("active-theme");
             activeBadge.set_visible(true);
         }
         else {
-            btn.remove_css_class("active-theme");
+            card.remove_css_class("active-theme");
             activeBadge.set_visible(false);
         }
     };
     updateActive();
     activeSlug.subscribe(updateActive);
-    btn.connect("clicked", () => applyTheme(slug, data));
-    return btn;
+    return card;
 }
 // ─── Main Widget ──────────────────────────────────────────────────────────────
 export default function ThemeSelector() {
@@ -244,7 +284,7 @@ export default function ThemeSelector() {
     currentLabel.set_label(currentThemeName.get());
     const arrowLabel = new Gtk.Label({ label: "›", cssClasses: ["theme-toggle-arrow"] });
     const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
-    inner.append(new Gtk.Image({ iconName: "preferences-desktop-theme-symbolic" }));
+    inner.append(new Gtk.Image({ iconName: "applications-graphics-symbolic" }));
     inner.append(new Gtk.Label({ label: "Tema", cssClasses: ["theme-toggle-label"], hexpand: true, xalign: 0 }));
     inner.append(currentLabel);
     inner.append(arrowLabel);
