@@ -1,17 +1,1 @@
-[
-  {
-    "name": "POCO X7",
-    "address": "FC:43:45:64:67:63",
-    "icon": "phone"
-  },
-  {
-    "name": "42:BD:DA:E2:FC:87",
-    "address": "42:BD:DA:E2:FC:87",
-    "icon": "bluetooth-symbolic"
-  },
-  {
-    "name": "M100",
-    "address": "41:42:FF:B0:4F:86",
-    "icon": "audio-headset"
-  }
-]
+[]

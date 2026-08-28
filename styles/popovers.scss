@@ -257,6 +257,32 @@ popover.clock-popover {
   // CUSTOM MENU POPOVERS
   // ═══════════════════════════════════════════════
 
+  // Columna de íconos del preview de workspace (hover sobre un punto).
+  .ws-preview {
+    padding: 0px;
+  }
+
+  // Cajita por ícono: mismo color/transparencia de reposo que
+  // .shortcut-btn en la sidebar, pero con el borde izquierdo y las
+  // esquinas redondeadas siempre visibles — acá no hay hover real que las
+  // active, así que van fijas desde el principio.
+  .ws-preview-item {
+    padding: 6px 12px;
+
+    margin: 2px 0;
+
+    border-radius: 8px;
+
+    border-left: 2px solid rgba(var(--primary-rgb), 0.65);
+    border-bottom: 1px solid rgba(var(--primary-rgb), 0.65);
+
+    background: rgba(var(--surface1-rgb), 1);
+
+    image {
+      color: rgba(var(--text-rgb), 1);
+    }
+  }
+
   .popover-section-title {
     color: var(--primary);
 
@@ -311,6 +337,91 @@ popover.clock-popover {
 
       color: var(--danger);
     }
+  }
+
+  // Botón chico de solo ícono (actualizar, olvidar, etc.) — sin esto el
+  // hover queda pegado al borde del ícono, casi sin margen para hacer clic.
+  .popover-icon-btn {
+    all: unset;
+
+    padding: 6px;
+
+    border-radius: 8px;
+
+    color: rgba(var(--subtext0-rgb), 0.9);
+
+    transition: all 0.2s ease;
+
+    image {
+      font-size: 13px;
+
+      color: var(--primary);
+    }
+
+    &:hover {
+      background-color: rgba(var(--overlay0-rgb), 0.9);
+
+      color: var(--accent0);
+    }
+
+    &.dangerous:hover {
+      background-color: rgba(var(--danger-rgb), 0.15);
+
+      color: var(--danger);
+    }
+  }
+
+  // Como .popover-item pero sin :hover — para filas contenedoras que no
+  // son clicables en sí (el clic vive en un switch/botón adentro); si
+  // llevaran el mismo hover que .popover-item, competiría visualmente con
+  // el hover propio de ese control interno.
+  .popover-row {
+    padding: 8px 14px;
+
+    border-radius: 8px;
+
+    color: rgba(var(--subtext0-rgb), 0.9);
+
+    image {
+      font-size: 13px;
+
+      color: var(--primary);
+    }
+
+    label {
+      font-size: 12px;
+
+      font-family: "Inter", sans-serif;
+
+      font-weight: 500;
+    }
+  }
+
+  .bt-status-error {
+    color: var(--danger);
+
+    font-size: 11px;
+
+    font-family: "Inter", sans-serif;
+
+    font-weight: 500;
+
+    padding: 2px 14px 4px;
+  }
+
+  .bt-scan-item {
+    // A diferencia de .popover-item normal, esta fila ya trae un botón
+    // de acento propio (Conectar), así que su hover queda más sutil para
+    // no competir visualmente con él.
+    &:hover {
+      color: rgba(var(--subtext0-rgb), 0.9);
+    }
+  }
+
+  .bt-scan-connect {
+    padding: 4px 10px;
+
+    font-size: 11px;
   }
 
   .popover-label {

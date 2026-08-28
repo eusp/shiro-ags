@@ -7,11 +7,23 @@ const LAYOUTS: Record<string, string> = {
     es: "ES",
 }
 
-function readLayout(): string {
+// hyprctl keyword no funciona con el config en Lua de este sistema
+// ("keyword can't work with non-legacy parsers"), así que hay que usar
+// switchxkblayout sobre el dispositivo real en vez de tocar la opción.
+function getKeyboardDevice(): string | null {
     try {
-        const out = exec("hyprctl getoption input:kb_layout")
-        const match = out.match(/str:\s*(\S+)/)
-        return match?.[1] || "us"
+        const data = JSON.parse(exec("hyprctl devices -j"))
+        return data?.keyboards?.[0]?.name || null
+    } catch {
+        return null
+    }
+}
+
+function readActiveLayout(): string {
+    try {
+        const data = JSON.parse(exec("hyprctl devices -j"))
+        const keymap: string = data?.keyboards?.[0]?.active_keymap || ""
+        return keymap.toLowerCase().includes("spanish") ? "es" : "us"
     } catch {
         return "us"
     }
@@ -24,14 +36,15 @@ export default function KeyboardLayout() {
     button.set_child(label)
 
     const update = () => {
-        const layout = readLayout()
+        const layout = readActiveLayout()
         label.label = LAYOUTS[layout] || layout.toUpperCase()
         button.tooltipText = layout === "es" ? "Español" : "English"
     }
 
     button.connect("clicked", () => {
-        const next = readLayout() === "es" ? "us" : "es"
-        execAsync(`hyprctl keyword input:kb_layout ${next}`)
+        const device = getKeyboardDevice()
+        if (!device) return
+        execAsync(["hyprctl", "switchxkblayout", device, "next"])
             .then(update)
             .catch(() => { })
     })

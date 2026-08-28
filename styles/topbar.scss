@@ -22,6 +22,13 @@ window.TopBar {
   // Workspaces
   // ─────────────────────────────────────────────
   .workspaces {
+    // Envoltorio invisible que ocupa toda la altura de la topbar (el
+    // círculo visible va adentro, en .ws-dot) — así el popover de preview,
+    // que se ancla a este botón, sale pegado al borde de la barra.
+    .ws-dot-btn {
+      all: unset;
+    }
+
     .ws-dot {
       all: unset;
       border-radius: 50%;
