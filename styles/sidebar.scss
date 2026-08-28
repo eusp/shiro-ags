@@ -162,4 +162,46 @@ window.SideBar {
     background: rgba(var(--primary-muted-rgb), 0.3);
     border-radius: 1px;
   }
+
+  // ─────────────────────────────────────────────
+  // Audio Route (send audio PC <-> laptop)
+  // ─────────────────────────────────────────────
+
+  .audio-route {
+    margin: 2px 0;
+
+    .audio-route-row {
+      margin-top: 2px;
+    }
+
+    .audio-route-btn {
+      all: unset;
+
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+
+      color: rgba(var(--subtext0-rgb), 0.4);
+
+      transition: all 0.2s ease;
+
+      image {
+        font-size: 10px;
+      }
+
+      &:hover {
+        color: var(--primary-alt);
+
+        text-shadow: 0 0 6px rgba(var(--primary-alt-rgb), 0.35);
+      }
+
+      &.active {
+        color: rgba(var(--accent0-rgb), 0.85);
+      }
+
+      &:disabled {
+        opacity: 0.35;
+      }
+    }
+  }
 }

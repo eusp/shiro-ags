@@ -4,6 +4,7 @@ import { Astal, Gtk } from "ags/gtk4";
 import { MediaControls } from "./SideBar/MediaControls";
 import { MediaVisualizer } from "./SideBar/MediaVisualizer";
 import AppList from "./SideBar/AppList";
+import AudioRoute from "./SideBar/AudioRoute";
 const { Gio } = imports.gi;
 function launchDetached(command) {
     const app = Gio.Subprocess.new([command], Gio.SubprocessFlags.SEARCH_PATH | Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
@@ -11,5 +12,5 @@ function launchDetached(command) {
 }
 export default function SideBar(gdkmonitor) {
     const { TOP, BOTTOM, LEFT } = Astal.WindowAnchor;
-    return (_jsx(Astal.Window, { name: "sidebar", cssClasses: ["SideBar"], visible: true, gdkmonitor: gdkmonitor, exclusivity: Astal.Exclusivity.EXCLUSIVE, anchor: TOP | BOTTOM | LEFT, application: app, layer: Astal.Layer.TOP, children: _jsxs("box", { orientation: Gtk.Orientation.VERTICAL, cssClasses: ["sidebar-container"], spacing: 10, children: [_jsx(AppList, {}), _jsx(MediaVisualizer, {}), _jsx("box", { orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.END, spacing: 8, cssClasses: ["system-zone"], children: _jsx(MediaControls, {}) })] }) }));
+    return (_jsx(Astal.Window, { name: "sidebar", cssClasses: ["SideBar"], visible: true, gdkmonitor: gdkmonitor, exclusivity: Astal.Exclusivity.EXCLUSIVE, anchor: TOP | BOTTOM | LEFT, application: app, layer: Astal.Layer.TOP, children: _jsxs("box", { orientation: Gtk.Orientation.VERTICAL, cssClasses: ["sidebar-container"], spacing: 10, children: [_jsx(AppList, {}), _jsx(MediaVisualizer, {}), _jsxs("box", { orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.END, spacing: 8, cssClasses: ["system-zone"], children: [_jsx(MediaControls, {}), _jsx(AudioRoute, {})] })] }) }));
 }

@@ -5,6 +5,7 @@ import { execAsync } from "ags/process"
 import { MediaControls } from "./SideBar/MediaControls"
 import { MediaVisualizer } from "./SideBar/MediaVisualizer"
 import AppList from "./SideBar/AppList"
+import AudioRoute from "./SideBar/AudioRoute"
 
 const { Gio } = imports.gi;
 
@@ -49,6 +50,7 @@ export default function SideBar(gdkmonitor: Gdk.Monitor) {
                     cssClasses={["system-zone"]}
                 >
                     <MediaControls />
+                    <AudioRoute />
                 </box>
             </box>
         </Astal.Window>
