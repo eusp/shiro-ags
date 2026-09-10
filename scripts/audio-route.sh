@@ -15,7 +15,10 @@ set -euo pipefail
 PC_HOST="nobara-pc"       ; PC_ADDR="nobara-pc.local"
 LT_HOST="nobara-laptop"   ; LT_ADDR="nobara-laptop.local"
 TUNNEL_SINK="send_to_other"
-LATENCY_MSEC="${AUDIO_ROUTE_LATENCY:-120}"
+# WiFi + a Bluetooth (SBC) sink on the receiver stack two adaptive resamplers on
+# top of a jittery link; 120 ms leaves no room to absorb clock drift, so the
+# stream slowly turns "screechy". 400 ms gives the rate controllers slack.
+LATENCY_MSEC="${AUDIO_ROUTE_LATENCY:-400}"
 STATE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/ags-audio-route.prev"
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
 
