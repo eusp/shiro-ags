@@ -10,6 +10,15 @@ dist/
 /lib/**/*.js
 /widget/**/*.js
 
+# Estado local que el shell reescribe en cada uso
+notes.json
+pinned.json
+bt-devices.json
+
+# Basura de programas lanzados con este directorio como cwd
+vkd3d-proton.cache*
+REDmodLog.txt
+
 # IDE
 .vscode/
 .idea/
