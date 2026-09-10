@@ -31,7 +31,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
         <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["quick-settings-zone"]}>
             <QuickSettingsList />
         </box>
-    )
+    ) as Gtk.Box
 
     // Hide only the toggles list when theme selector is open
     themeExpanded.subscribe(expanded => {
@@ -94,7 +94,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
                 </box>
             </box>
         </Astal.Window>
-    )
+    ) as Astal.Window
 
     rightMenuWindowRef = rightMenuWindow
     return rightMenuWindow

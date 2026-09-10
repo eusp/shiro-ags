@@ -149,7 +149,7 @@ class Wp extends GObject.Object {
     private _watch() {
         try {
             const proc = Gio.Subprocess.new(["pactl", "subscribe"], Gio.SubprocessFlags.STDOUT_PIPE)
-            const stream = new Gio.DataInputStream({ base_stream: proc.get_stdout_pipe() })
+            const stream = new Gio.DataInputStream({ base_stream: proc.get_stdout_pipe()! })
 
             const readLine = () => {
                 stream.read_line_async(GLib.PRIORITY_DEFAULT, null, (_src: any, res: any) => {

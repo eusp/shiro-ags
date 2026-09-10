@@ -156,7 +156,7 @@ export default function Clock() {
                     />
                 </box>
             </box>
-        </box>
+        </box> as Gtk.Box
     )
 
     const menuButton = new Gtk.MenuButton({ child: buttonContent, popover: popover })

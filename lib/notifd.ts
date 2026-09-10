@@ -177,7 +177,7 @@ class Notifd extends GObject.Object {
                 const id = replacesId > 0 ? replacesId : this._nextId++
                 if (id >= this._nextId) this._nextId = id + 1
 
-                const icon = appIcon || hints?.["image-path"]?.deep_unpack?.() || ""
+                const icon = appIcon || hints?.["image-path"]?.deep_unpack?.<string>() || ""
                 const timeoutMs = expireTimeout > 0 ? expireTimeout : DEFAULT_TIMEOUT_MS
 
                 return this._create(id, appName, icon, summary, body, timeoutMs)

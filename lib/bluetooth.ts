@@ -16,12 +16,26 @@ import Gio from "gi://Gio?version=2.0"
 Gio._promisify(Gio.DBusProxy, "new_for_bus", "new_for_bus_finish")
 Gio._promisify(Gio.DBusProxy.prototype, "call", "call_finish")
 
+// The @girs types only know the callback form; once promisified, omitting the
+// callback returns a Promise. Still called as a method so `this` stays bound.
+const DBusProxy = Gio.DBusProxy as unknown as {
+    new_for_bus(
+        busType: Gio.BusType,
+        flags: Gio.DBusProxyFlags,
+        info: Gio.DBusInterfaceInfo | null,
+        name: string,
+        objectPath: string,
+        interfaceName: string,
+        cancellable: Gio.Cancellable | null,
+    ): Promise<Gio.DBusProxy>
+}
+
 const BLUEZ_BUS = "org.bluez"
 const ADAPTER_IFACE = "org.bluez.Adapter1"
 const DEVICE_IFACE = "org.bluez.Device1"
 
 async function proxy(path: string, iface: string): Promise<any> {
-    return Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null, BLUEZ_BUS, path, iface, null)
+    return DBusProxy.new_for_bus(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null, BLUEZ_BUS, path, iface, null)
 }
 
 function readProp(p: any, name: string): any {
@@ -222,7 +236,7 @@ class Bluetooth extends GObject.Object {
 
     private async _connect() {
         try {
-            this._objectManager = await Gio.DBusProxy.new_for_bus(
+            this._objectManager = await DBusProxy.new_for_bus(
                 Gio.BusType.SYSTEM,
                 Gio.DBusProxyFlags.NONE,
                 null,

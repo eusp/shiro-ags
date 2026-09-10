@@ -177,12 +177,12 @@ export function MediaVisualizer() {
             if (!ok) return console.error("No se pudieron listar sinks")
 
             const decoder = new TextDecoder('utf-8')
-            const lines = decoder.decode(stdout).split("\n")
+            const lines = decoder.decode(stdout!).split("\n")
             let activeSink = lines.find(l => l.includes("RUNNING"))?.split("\t")[1] ?? ""
 
             if (!activeSink) {
                 const [ok2, defOut] = GLib.spawn_command_line_sync("pactl get-default-sink")
-                if (ok2) activeSink = decoder.decode(defOut).trim()
+                if (ok2) activeSink = decoder.decode(defOut!).trim()
             }
 
             if (!activeSink) return console.error("No se encontró sink activo")
