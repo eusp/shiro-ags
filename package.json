@@ -5,15 +5,17 @@
   "main": "app.ts",
   "type": "module",
   "scripts": {
-    "dev": "ags run .",
-    "check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "fft-js": "^0.0.12"
+    "dev": "ags run app.ts",
+    "check": "tsc --noEmit --pretty false | grep 'error TS' | grep -v '/share/ags/js/'; test $? -eq 1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "@girs/adw-1": "1.10.0-4.0.0-rc.17",
+    "@girs/giounix-2.0": "2.0.0-4.0.0-rc.17",
+    "@girs/gjs": "4.0.0-rc.17",
+    "@girs/gtk-4.0": "4.23.0-4.0.0-rc.17",
+    "ags": "file:/usr/local/share/ags/js",
+    "gnim": "file:/usr/local/share/ags/js/node_modules/gnim",
+    "typescript": "^5.9.0"
   },
   "prettier": {
     "semi": false,
