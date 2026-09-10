@@ -5,6 +5,11 @@ dist/
 .cache/
 @girs/
 
+# JS compilado por `tsc` (AGS ejecuta los .ts/.tsx directamente)
+/app.js
+/lib/**/*.js
+/widget/**/*.js
+
 # IDE
 .vscode/
 .idea/
