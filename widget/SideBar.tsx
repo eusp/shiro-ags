@@ -1,21 +1,10 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
-import { execAsync } from "ags/process"
 
 import { MediaControls } from "./SideBar/MediaControls"
 import { MediaVisualizer } from "./SideBar/MediaVisualizer"
 import AppList from "./SideBar/AppList"
 import AudioRoute from "./SideBar/AudioRoute"
-
-const { Gio } = imports.gi;
-
-function launchDetached(command: string) {
-    const app = Gio.Subprocess.new(
-        [command],
-        Gio.SubprocessFlags.SEARCH_PATH | Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
-    );
-    app.spawn(null);
-}
 
 export default function SideBar(gdkmonitor: Gdk.Monitor) {
     const { TOP, BOTTOM, LEFT } = Astal.WindowAnchor
