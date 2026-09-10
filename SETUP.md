@@ -1,6 +1,64 @@
-# Guía de Instalación (Nobara/Fedora)
+# Guía de Instalación
 
-Esta guía instala todo lo necesario para que esta configuración de AGS funcione en Nobara/Fedora.
+Esta guía instala todo lo necesario para que esta configuración de AGS funcione.
+
+- **Arch / CachyOS**: la forma recomendada es `install.sh` de [shiro-theme](https://github.com/eusp/shiro-theme),
+  que hace todos estos pasos. Abajo está el detalle por si hay que hacerlo a mano.
+- **Nobara / Fedora**: ver la sección [Nobara/Fedora](#nobarafedora).
+
+## Arch / CachyOS
+
+### 1. Paquetes de los repos
+```bash
+sudo pacman -S --needed git base-devel nodejs npm curl \
+    hyprland gjs gtk4 gtk4-layer-shell dart-sass libnotify wl-clipboard cliphist \
+    pipewire-pulse wireplumber libpulse pavucontrol networkmanager nm-connection-editor \
+    upower bluez bluez-utils brightnessctl \
+    meson ninja go gobject-introspection \
+    ttf-jetbrains-mono-nerd adwaita-icon-theme avahi nss-mdns
+```
+
+`powerprofilesctl`: CachyOS puede traer `tuned-ppd`, que ya lo incluye. Si no existe el comando,
+instala `power-profiles-daemon` (no los dos, chocan).
+
+### 2. Astal core (AUR)
+Solo se usan `astal-io` y `astal4` (ver la sección de Astal más abajo):
+
+```bash
+sudo pacman -S --needed paru      # CachyOS ya no trae helper de AUR preinstalado
+paru -S libastal-io-git libastal-4-git
+```
+
+### 3. AGS v3 desde el código fuente
+Existe `aylurs-gtk-shell-git` en AUR, pero se instala en `/usr`, y `package.json` apunta a
+`/usr/local/share/ags/js` (tipos para `npm run check`). Compilarlo deja todo igual que en Fedora:
+
+```bash
+git clone https://github.com/aylur/ags.git ~/ags
+cd ~/ags
+npm install
+meson setup build
+sudo meson install -C build
+ags --version
+```
+
+### 4. Clonar la configuración
+```bash
+git clone https://github.com/eusp/shiro-ags.git ~/.config/shiro-ags
+ln -s ~/.config/shiro-ags ~/.config/ags
+cd ~/.config/shiro-ags && npm install
+```
+
+### 5. Detalles de Arch
+- **`*.local` (audio-route.sh)**: Arch no resuelve mDNS por defecto. `sudo systemctl enable --now avahi-daemon`
+  y en `/etc/nsswitch.conf` agrega `mdns_minimal [NOTFOUND=return]` antes de `resolve` en la línea `hosts:`.
+- **Hostnames**: `scripts/audio-route.sh` busca `nobara-pc` / `nobara-laptop`. Si cambias el nombre de los
+  equipos, edita `PC_HOST`/`LT_HOST` (y las direcciones `.local`) al principio del script.
+- **Brillo**: `sudo usermod -aG video $USER` en el laptop.
+
+---
+
+## Nobara/Fedora
 
 ## 1. Hyprland y herramientas del sistema
 ```bash
@@ -48,8 +106,9 @@ AGS compila los estilos SCSS con `sass` (dart-sass), que tiene que estar en el `
 
 ## 4. Clonar la configuración
 ```bash
-git clone https://github.com/eusp/ags.git ~/.config/ags
-cd ~/.config/ags
+git clone https://github.com/eusp/shiro-ags.git ~/.config/shiro-ags
+ln -s ~/.config/shiro-ags ~/.config/ags
+cd ~/.config/shiro-ags
 npm install
 ```
 

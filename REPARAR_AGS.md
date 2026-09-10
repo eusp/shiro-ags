@@ -29,6 +29,9 @@ Qué se rompió en el pasado, por qué ya no debería volver a pasar, y qué rev
 
 La instalación completa desde cero está en `SETUP.md`.
 
+> En **Arch/CachyOS** el COPR no aplica: `astal-io`/`astal4` vienen de AUR (`libastal-io-git`,
+> `libastal-4-git`). Donde la tabla de abajo dice `dnf install ...`, usa `paru -S libastal-io-git libastal-4-git`.
+
 ---
 
 ## 3. Si AGS no arranca

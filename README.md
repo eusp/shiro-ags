@@ -1,6 +1,12 @@
-# AGS Configuration - Antigravity Edition
+# shiro-ags
 
-Una configuración de AGS (Aylur's GTK Shell) v3 altamente personalizada, minimalista y funcional, diseñada para Hyprland en Nobara Linux.
+Una configuración de AGS (Aylur's GTK Shell) v3 altamente personalizada, minimalista y funcional, diseñada para Hyprland. Es el shell del escritorio Shiro y forma parte de [shiro-theme](https://github.com/eusp/shiro-theme).
+
+Proyectos Shiro: [shiro-theme](https://github.com/eusp/shiro-theme) ·
+**shiro-ags** ·
+[shiro-hyprland](https://github.com/eusp/shiro-hyprland) ·
+[shiro-sddm](https://github.com/eusp/shiro-sddm) ·
+[shiro-grub](https://github.com/eusp/shiro-grub)
 
 ## ✨ Características Principales
 
@@ -29,7 +35,7 @@ Una configuración de AGS (Aylur's GTK Shell) v3 altamente personalizada, minima
 
 ## 🎨 Sistema de Diseño
 
-- **Paleta de Colores**: Definida por [shiro-theme](https://github.com/emerson/.config/shiro-theme) — variables CSS nativas en `styles/colors.scss`.  
+- **Paleta de Colores**: Definida por [shiro-theme](https://github.com/eusp/shiro-theme) — variables CSS nativas en `styles/colors.scss`.  
   Los estilos usan `var(--primary)`, `var(--base)`, etc. en lugar de variables Sass, lo que permite **hot-reload de colores en runtime** sin recompilar ni reiniciar AGS.
 - **Hot-reload de tema**: Al seleccionar un tema en el widget, se inyecta un `Gtk.CssProvider` con prioridad 900 (mayor que la prioridad de carga de AGS) que sobreescribe todas las variables de color al instante.
 - **Popovers Unificados**: Todos los menús flotantes comparten el mismo estilo:
@@ -63,8 +69,8 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
 
 ## 🚀 Instalación y Uso
 
-1.  Instala las dependencias y AGS v3 siguiendo [SETUP.md](SETUP.md).
-2.  Clona el repositorio en `~/.config/ags`.
+1.  Instala las dependencias y AGS v3 siguiendo [SETUP.md](SETUP.md) (Arch/CachyOS o Fedora/Nobara).
+2.  Clona el repositorio en `~/.config/shiro-ags` y enlázalo como `~/.config/ags` — o deja que lo haga `install.sh` de [shiro-theme](https://github.com/eusp/shiro-theme).
 3.  Ejecuta con:
     ```bash
     ags run ~/.config/ags/app.ts

@@ -1,7 +1,7 @@
 {
-  "name": "ags-config",
+  "name": "shiro-ags",
   "version": "1.0.0",
-  "description": "Custom AGS configuration using Astal and GTK4",
+  "description": "Shell AGS (Astal/GTK4) del escritorio Shiro, parte de shiro-theme",
   "main": "app.ts",
   "type": "module",
   "scripts": {
