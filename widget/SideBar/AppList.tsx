@@ -2,6 +2,7 @@ import { Gtk } from "ags/gtk4"
 import Hyprland, { Client } from "../../lib/hyprland"
 import Apps from "../../lib/apps"
 import Gio from "gi://Gio"
+import GioUnix from "gi://GioUnix"
 import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
 import pins from "../../lib/pins"
 
@@ -29,12 +30,11 @@ function launchDetached(command: string) {
 function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     const sections: MenuSection[] = []
     const match = appInfo?.matches || client?.class?.toLowerCase() || ""
-    let desktopApp: Gio.DesktopAppInfo | null = null
+    let desktopApp: GioUnix.DesktopAppInfo | null = null
 
     const tryGetAppInfo = (id: string) => {
         if (!id) return null
-        // @ts-ignore
-        const DesktopAppInfo = (imports.gi.GioUnix ? imports.gi.GioUnix.DesktopAppInfo : Gio.DesktopAppInfo)
+        const { DesktopAppInfo } = GioUnix
         return DesktopAppInfo.new(id) ||
             DesktopAppInfo.new(id + ".desktop") ||
             DesktopAppInfo.new("org.mozilla." + id) ||
@@ -49,9 +49,7 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     })
 
     if (astalApp?.id) {
-        // @ts-ignore
-        const DesktopAppInfo = (imports.gi.GioUnix ? imports.gi.GioUnix.DesktopAppInfo : Gio.DesktopAppInfo)
-        desktopApp = DesktopAppInfo.new(astalApp.id)
+        desktopApp = GioUnix.DesktopAppInfo.new(astalApp.id)
     }
 
     if (!desktopApp) desktopApp = tryGetAppInfo(match)
@@ -62,11 +60,10 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
             (a.get_id() || "").toLowerCase().includes(match) ||
             (a.get_name() || "").toLowerCase().includes(match) ||
             (a.get_executable() || "").toLowerCase().includes(match)
-        ) as Gio.DesktopAppInfo
+        ) as GioUnix.DesktopAppInfo
     }
 
     if (desktopApp) {
-        // @ts-ignore
         const actions = desktopApp.list_actions ? desktopApp.list_actions() : []
         if (actions.length > 0) {
             sections.push({
@@ -75,7 +72,6 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
                     label: desktopApp?.get_action_name(name) || name,
                     icon: "system-run-symbolic",
                     onClick: () => {
-                        // @ts-ignore
                         if (desktopApp?.launch_action) desktopApp.launch_action(name, null)
                     }
                 }))
@@ -130,7 +126,7 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     sections.push({ items: pinningItems })
 
     if (windowItems.length > 0) {
-        const existingLabels = sections.flatMap(s => s.items || []).map(i => i.label.toLowerCase())
+        const existingLabels = sections.flatMap(s => s.items || []).map(i => (i.label ?? "").toLowerCase())
         const hasNewWindow = existingLabels.some(l =>
             (l.includes("nueva") && l.includes("ventana")) || (l.includes("new") && l.includes("window"))
         )

@@ -1,6 +1,7 @@
 import { Gtk } from "ags/gtk4"
 import { exec, execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
+import GObject from "gi://GObject?version=2.0"
 
 const POLL_MS = 2000
 const DEBOUNCE_MS = 80
@@ -57,9 +58,9 @@ export default function BrightnessControl() {
         if (debounceId) return GLib.SOURCE_CONTINUE
         const val = readBrightness()
         if (val !== null && Math.abs(val - slider.get_value()) > 0.01) {
-            slider.handler_block(handlerId)
+            GObject.signal_handler_block(slider, handlerId)
             slider.set_value(val)
-            slider.handler_unblock(handlerId)
+            GObject.signal_handler_unblock(slider, handlerId)
         }
         return GLib.SOURCE_CONTINUE
     })

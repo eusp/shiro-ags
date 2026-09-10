@@ -123,7 +123,7 @@ export function MenuPopover(
             popover.set_parent(parent)
         }
         parent.connect("destroy", () => {
-            if (!popover.is_finalized && popover.get_parent() === parent) {
+            if (popover.get_parent() === parent) {
                 popover.set_parent(null!)
             }
         })
