@@ -97,141 +97,145 @@ export class Client {
     }
 }
 
-const Hyprland = GObject.registerClass(
-    {
-        GTypeName: "ShiroHyprland",
-        Properties: {
-            clients: GObject.ParamSpec.jsobject("clients", "clients", "clients", GObject.ParamFlags.READABLE),
-            "focused-client": GObject.ParamSpec.jsobject(
-                "focused-client", "focused-client", "focused-client", GObject.ParamFlags.READABLE,
-            ),
-            "focused-workspace": GObject.ParamSpec.jsobject(
-                "focused-workspace", "focused-workspace", "focused-workspace", GObject.ParamFlags.READABLE,
-            ),
-        },
-    },
-    class Hyprland extends GObject.Object {
-        static _instance: InstanceType<typeof Hyprland> | null = null
-        static get_default() {
-            if (!Hyprland._instance) Hyprland._instance = new Hyprland()
-            return Hyprland._instance
-        }
+class Hyprland extends GObject.Object {
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: "ShiroHyprland",
+                Properties: {
+                    clients: GObject.ParamSpec.jsobject("clients", "clients", "clients", GObject.ParamFlags.READABLE),
+                    "focused-client": GObject.ParamSpec.jsobject(
+                        "focused-client", "focused-client", "focused-client", GObject.ParamFlags.READABLE,
+                    ),
+                    "focused-workspace": GObject.ParamSpec.jsobject(
+                        "focused-workspace", "focused-workspace", "focused-workspace", GObject.ParamFlags.READABLE,
+                    ),
+                },
+            },
+            this,
+        )
+    }
 
-        private _clients: Client[] = []
-        private _focusedClient: Client | null = null
-        private _focusedWorkspace: HyprWorkspace = { id: 1, name: "1" }
-        private _refreshPending = false
+    static _instance: InstanceType<typeof Hyprland> | null = null
+    static get_default() {
+        if (!Hyprland._instance) Hyprland._instance = new Hyprland()
+        return Hyprland._instance
+    }
 
-        constructor() {
-            super()
-            // Deferred: `_refresh()` shells out to `hyprctl` synchronously,
-            // which would otherwise block the UI from becoming interactive
-            // at startup.
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                this._refresh()
-                this._listen()
-                return GLib.SOURCE_REMOVE
-            })
-        }
+    private _clients: Client[] = []
+    private _focusedClient: Client | null = null
+    private _focusedWorkspace: HyprWorkspace = { id: 1, name: "1" }
+    private _refreshPending = false
 
-        get clients() {
-            return this._clients
-        }
+    constructor() {
+        super()
+        // Deferred: `_refresh()` shells out to `hyprctl` synchronously,
+        // which would otherwise block the UI from becoming interactive
+        // at startup.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._refresh()
+            this._listen()
+            return GLib.SOURCE_REMOVE
+        })
+    }
 
-        get focusedClient() {
-            return this._focusedClient
-        }
+    get clients() {
+        return this._clients
+    }
 
-        get focusedWorkspace() {
-            return this._focusedWorkspace
-        }
+    get focusedClient() {
+        return this._focusedClient
+    }
 
-        dispatch(dispatcher: string, args = "") {
-            hyprctlDispatch(dispatcher, args)
-        }
+    get focusedWorkspace() {
+        return this._focusedWorkspace
+    }
 
-        get_cursor_position() {
-            const pos = hyprctlJson("cursorpos")
-            return { x: pos?.x ?? 0, y: pos?.y ?? 0 }
-        }
+    dispatch(dispatcher: string, args = "") {
+        hyprctlDispatch(dispatcher, args)
+    }
 
-        private _refresh() {
-            const rawClients: any[] = hyprctlJson("clients") || []
-            this._clients = rawClients.map((c) => new Client(c))
+    get_cursor_position() {
+        const pos = hyprctlJson("cursorpos")
+        return { x: pos?.x ?? 0, y: pos?.y ?? 0 }
+    }
 
-            const rawActive = hyprctlJson("activewindow")
-            this._focusedClient = rawActive?.address
-                ? this._clients.find((c) => c.address === rawActive.address) || new Client(rawActive)
-                : null
+    private _refresh() {
+        const rawClients: any[] = hyprctlJson("clients") || []
+        this._clients = rawClients.map((c) => new Client(c))
 
-            const rawWs = hyprctlJson("activeworkspace")
-            if (rawWs) this._focusedWorkspace = { id: rawWs.id, name: rawWs.name }
+        const rawActive = hyprctlJson("activewindow")
+        this._focusedClient = rawActive?.address
+            ? this._clients.find((c) => c.address === rawActive.address) || new Client(rawActive)
+            : null
 
-            this.notify("clients")
-            this.notify("focused-client")
-            this.notify("focused-workspace")
-        }
+        const rawWs = hyprctlJson("activeworkspace")
+        if (rawWs) this._focusedWorkspace = { id: rawWs.id, name: rawWs.name }
 
-        // Hyprland's event socket can fire several events in a burst (e.g. on
-        // workspace switch: workspace>>, activewindow>>, focusedmon>>). Debounce
-        // so a single burst triggers one hyprctl round-trip, not three.
-        private _scheduleRefresh() {
-            if (this._refreshPending) return
-            this._refreshPending = true
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => {
-                this._refreshPending = false
-                this._refresh()
-                return GLib.SOURCE_REMOVE
-            })
-        }
+        this.notify("clients")
+        this.notify("focused-client")
+        this.notify("focused-workspace")
+    }
 
-        private _listen() {
-            const sigDir = `${GLib.getenv("XDG_RUNTIME_DIR")}/hypr/${GLib.getenv("HYPRLAND_INSTANCE_SIGNATURE")}`
-            const sockPath = `${sigDir}/.socket2.sock`
+    // Hyprland's event socket can fire several events in a burst (e.g. on
+    // workspace switch: workspace>>, activewindow>>, focusedmon>>). Debounce
+    // so a single burst triggers one hyprctl round-trip, not three.
+    private _scheduleRefresh() {
+        if (this._refreshPending) return
+        this._refreshPending = true
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => {
+            this._refreshPending = false
+            this._refresh()
+            return GLib.SOURCE_REMOVE
+        })
+    }
 
-            const connect = () => {
-                try {
-                    const address = Gio.UnixSocketAddress.new(sockPath)
-                    const client = new Gio.SocketClient()
-                    const conn = client.connect(address, null)
-                    const dis = new Gio.DataInputStream({ base_stream: conn.get_input_stream() })
+    private _listen() {
+        const sigDir = `${GLib.getenv("XDG_RUNTIME_DIR")}/hypr/${GLib.getenv("HYPRLAND_INSTANCE_SIGNATURE")}`
+        const sockPath = `${sigDir}/.socket2.sock`
 
-                    const readLine = () => {
-                        dis.read_line_async(GLib.PRIORITY_DEFAULT, null, (_src, res) => {
-                            let line: string | null
-                            try {
-                                ;[line] = dis.read_line_finish_utf8(res)
-                            } catch (e) {
-                                line = null
-                            }
+        const connect = () => {
+            try {
+                const address = Gio.UnixSocketAddress.new(sockPath)
+                const client = new Gio.SocketClient()
+                const conn = client.connect(address, null)
+                const dis = new Gio.DataInputStream({ base_stream: conn.get_input_stream() })
 
-                            if (line === null) {
-                                // Socket closed — Hyprland reloaded or restarted. Retry shortly.
-                                GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-                                    connect()
-                                    return GLib.SOURCE_REMOVE
-                                })
-                                return
-                            }
+                const readLine = () => {
+                    dis.read_line_async(GLib.PRIORITY_DEFAULT, null, (_src, res) => {
+                        let line: string | null
+                        try {
+                            ;[line] = dis.read_line_finish_utf8(res)
+                        } catch (e) {
+                            line = null
+                        }
 
-                            this._scheduleRefresh()
-                            readLine()
-                        })
-                    }
+                        if (line === null) {
+                            // Socket closed — Hyprland reloaded or restarted. Retry shortly.
+                            GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+                                connect()
+                                return GLib.SOURCE_REMOVE
+                            })
+                            return
+                        }
 
-                    readLine()
-                } catch (e) {
-                    logError(e as Error, "hyprland: could not connect to event socket, retrying")
-                    GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
-                        connect()
-                        return GLib.SOURCE_REMOVE
+                        this._scheduleRefresh()
+                        readLine()
                     })
                 }
-            }
 
-            connect()
+                readLine()
+            } catch (e) {
+                logError(e as Error, "hyprland: could not connect to event socket, retrying")
+                GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+                    connect()
+                    return GLib.SOURCE_REMOVE
+                })
+            }
         }
-    },
-)
+
+        connect()
+    }
+}
 
 export default Hyprland

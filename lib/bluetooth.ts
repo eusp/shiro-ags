@@ -87,185 +87,193 @@ export class Device {
     }
 }
 
-const Adapter = GObject.registerClass(
-    {
-        GTypeName: "ShiroBtAdapter",
-        Properties: {
-            powered: GObject.ParamSpec.jsobject("powered", "", "", GObject.ParamFlags.READABLE),
-        },
-    },
-    class Adapter extends GObject.Object {
-        path: string
-        private _proxy: any = null
-        private _powered = false
+class Adapter extends GObject.Object {
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: "ShiroBtAdapter",
+                Properties: {
+                    powered: GObject.ParamSpec.jsobject("powered", "", "", GObject.ParamFlags.READABLE),
+                },
+            },
+            this,
+        )
+    }
 
-        constructor(path: string) {
-            super()
-            this.path = path
+    path: string
+    private _proxy: any = null
+    private _powered = false
+
+    constructor(path: string) {
+        super()
+        this.path = path
+    }
+
+    async init() {
+        try {
+            this._proxy = await proxy(this.path, ADAPTER_IFACE)
+            this._proxy.connect("g-properties-changed", () => this._refresh())
+            this._refresh()
+        } catch (e) {
+            logError(e as Error, "bluetooth: failed to create adapter proxy")
         }
+    }
 
-        async init() {
-            try {
-                this._proxy = await proxy(this.path, ADAPTER_IFACE)
-                this._proxy.connect("g-properties-changed", () => this._refresh())
-                this._refresh()
-            } catch (e) {
-                logError(e as Error, "bluetooth: failed to create adapter proxy")
+    get powered() {
+        return this._powered
+    }
+
+    set_powered(value: boolean) {
+        if (!this._proxy) return
+        setRemoteProperty(this._proxy, ADAPTER_IFACE, "Powered", new GLib.Variant("b", value))
+    }
+
+    start_discovery() {
+        if (!this._proxy) return
+        try {
+            this._proxy.call("StartDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
+        } catch (e) {
+            logError(e as Error, "bluetooth: start_discovery failed")
+        }
+    }
+
+    stop_discovery() {
+        if (!this._proxy) return
+        try {
+            this._proxy.call("StopDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
+        } catch (e) {
+            logError(e as Error, "bluetooth: stop_discovery failed")
+        }
+    }
+
+    private _refresh() {
+        this._powered = readProp(this._proxy, "Powered") || false
+        this.notify("powered")
+    }
+}
+
+class Bluetooth extends GObject.Object {
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: "ShiroBluetooth",
+                Properties: {
+                    devices: GObject.ParamSpec.jsobject("devices", "", "", GObject.ParamFlags.READABLE),
+                    adapter: GObject.ParamSpec.jsobject("adapter", "", "", GObject.ParamFlags.READABLE),
+                    "is-powered": GObject.ParamSpec.jsobject("is-powered", "", "", GObject.ParamFlags.READABLE),
+                },
+            },
+            this,
+        )
+    }
+
+    static _instance: InstanceType<typeof Bluetooth> | null = null
+    static get_default() {
+        if (!Bluetooth._instance) Bluetooth._instance = new Bluetooth()
+        return Bluetooth._instance
+    }
+
+    private _devices = new Map<string, Device>()
+    private _adapter: InstanceType<typeof Adapter> | null = null
+    private _objectManager: any
+
+    constructor() {
+        super()
+        // Deferred so bluez's (now async, but still not instant) startup
+        // handshake doesn't delay the UI from becoming interactive.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._connect()
+            return GLib.SOURCE_REMOVE
+        })
+    }
+
+    get devices(): Device[] {
+        return Array.from(this._devices.values())
+    }
+
+    get adapter() {
+        return this._adapter
+    }
+
+    get isPowered() {
+        return this._adapter?.powered ?? false
+    }
+
+    toggle() {
+        if (this._adapter) this._adapter.set_powered(!this._adapter.powered)
+    }
+
+    private _addAdapter(path: string) {
+        if (this._adapter) return
+        this._adapter = new Adapter(path)
+        this._adapter.connect("notify::powered", () => this.notify("is-powered"))
+        this._adapter.init().then(() => {
+            this.notify("adapter")
+            this.notify("is-powered")
+        })
+    }
+
+    private _addDevice(path: string) {
+        if (this._devices.has(path)) return
+        const device = new Device(path)
+        this._devices.set(path, device)
+        device.init(() => this.notify("devices"))
+    }
+
+    private async _connect() {
+        try {
+            this._objectManager = await Gio.DBusProxy.new_for_bus(
+                Gio.BusType.SYSTEM,
+                Gio.DBusProxyFlags.NONE,
+                null,
+                BLUEZ_BUS,
+                "/",
+                "org.freedesktop.DBus.ObjectManager",
+                null,
+            )
+
+            const result = await this._objectManager.call("GetManagedObjects", null, Gio.DBusCallFlags.NONE, -1, null)
+            const [objects] = (result as any).recursiveUnpack()
+
+            for (const path in objects) {
+                const ifaces = objects[path]
+                if (ifaces[ADAPTER_IFACE]) this._addAdapter(path)
+                if (ifaces[DEVICE_IFACE]) this._addDevice(path)
             }
-        }
+            this.notify("devices")
 
-        get powered() {
-            return this._powered
-        }
+            const connection = this._objectManager.get_connection()
 
-        set_powered(value: boolean) {
-            if (!this._proxy) return
-            setRemoteProperty(this._proxy, ADAPTER_IFACE, "Powered", new GLib.Variant("b", value))
-        }
-
-        start_discovery() {
-            if (!this._proxy) return
-            try {
-                this._proxy.call("StartDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
-            } catch (e) {
-                logError(e as Error, "bluetooth: start_discovery failed")
-            }
-        }
-
-        stop_discovery() {
-            if (!this._proxy) return
-            try {
-                this._proxy.call("StopDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
-            } catch (e) {
-                logError(e as Error, "bluetooth: stop_discovery failed")
-            }
-        }
-
-        private _refresh() {
-            this._powered = readProp(this._proxy, "Powered") || false
-            this.notify("powered")
-        }
-    },
-)
-
-const Bluetooth = GObject.registerClass(
-    {
-        GTypeName: "ShiroBluetooth",
-        Properties: {
-            devices: GObject.ParamSpec.jsobject("devices", "", "", GObject.ParamFlags.READABLE),
-            adapter: GObject.ParamSpec.jsobject("adapter", "", "", GObject.ParamFlags.READABLE),
-            "is-powered": GObject.ParamSpec.jsobject("is-powered", "", "", GObject.ParamFlags.READABLE),
-        },
-    },
-    class Bluetooth extends GObject.Object {
-        static _instance: InstanceType<typeof Bluetooth> | null = null
-        static get_default() {
-            if (!Bluetooth._instance) Bluetooth._instance = new Bluetooth()
-            return Bluetooth._instance
-        }
-
-        private _devices = new Map<string, Device>()
-        private _adapter: InstanceType<typeof Adapter> | null = null
-        private _objectManager: any
-
-        constructor() {
-            super()
-            // Deferred so bluez's (now async, but still not instant) startup
-            // handshake doesn't delay the UI from becoming interactive.
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                this._connect()
-                return GLib.SOURCE_REMOVE
-            })
-        }
-
-        get devices(): Device[] {
-            return Array.from(this._devices.values())
-        }
-
-        get adapter() {
-            return this._adapter
-        }
-
-        get isPowered() {
-            return this._adapter?.powered ?? false
-        }
-
-        toggle() {
-            if (this._adapter) this._adapter.set_powered(!this._adapter.powered)
-        }
-
-        private _addAdapter(path: string) {
-            if (this._adapter) return
-            this._adapter = new Adapter(path)
-            this._adapter.connect("notify::powered", () => this.notify("is-powered"))
-            this._adapter.init().then(() => {
-                this.notify("adapter")
-                this.notify("is-powered")
-            })
-        }
-
-        private _addDevice(path: string) {
-            if (this._devices.has(path)) return
-            const device = new Device(path)
-            this._devices.set(path, device)
-            device.init(() => this.notify("devices"))
-        }
-
-        private async _connect() {
-            try {
-                this._objectManager = await Gio.DBusProxy.new_for_bus(
-                    Gio.BusType.SYSTEM,
-                    Gio.DBusProxyFlags.NONE,
-                    null,
-                    BLUEZ_BUS,
-                    "/",
-                    "org.freedesktop.DBus.ObjectManager",
-                    null,
-                )
-
-                const result = await this._objectManager.call("GetManagedObjects", null, Gio.DBusCallFlags.NONE, -1, null)
-                const [objects] = (result as any).recursiveUnpack()
-
-                for (const path in objects) {
-                    const ifaces = objects[path]
+            connection.signal_subscribe(
+                BLUEZ_BUS,
+                "org.freedesktop.DBus.ObjectManager",
+                "InterfacesAdded",
+                null,
+                null,
+                Gio.DBusSignalFlags.NONE,
+                (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
+                    const [path, ifaces] = (params as any).recursiveUnpack()
                     if (ifaces[ADAPTER_IFACE]) this._addAdapter(path)
                     if (ifaces[DEVICE_IFACE]) this._addDevice(path)
-                }
-                this.notify("devices")
+                },
+            )
 
-                const connection = this._objectManager.get_connection()
-
-                connection.signal_subscribe(
-                    BLUEZ_BUS,
-                    "org.freedesktop.DBus.ObjectManager",
-                    "InterfacesAdded",
-                    null,
-                    null,
-                    Gio.DBusSignalFlags.NONE,
-                    (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
-                        const [path, ifaces] = (params as any).recursiveUnpack()
-                        if (ifaces[ADAPTER_IFACE]) this._addAdapter(path)
-                        if (ifaces[DEVICE_IFACE]) this._addDevice(path)
-                    },
-                )
-
-                connection.signal_subscribe(
-                    BLUEZ_BUS,
-                    "org.freedesktop.DBus.ObjectManager",
-                    "InterfacesRemoved",
-                    null,
-                    null,
-                    Gio.DBusSignalFlags.NONE,
-                    (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
-                        const [path] = params.deep_unpack() as [string]
-                        if (this._devices.delete(path)) this.notify("devices")
-                    },
-                )
-            } catch (e) {
-                logError(e as Error, "bluetooth: could not connect to bluez")
-            }
+            connection.signal_subscribe(
+                BLUEZ_BUS,
+                "org.freedesktop.DBus.ObjectManager",
+                "InterfacesRemoved",
+                null,
+                null,
+                Gio.DBusSignalFlags.NONE,
+                (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
+                    const [path] = params.deep_unpack() as [string]
+                    if (this._devices.delete(path)) this.notify("devices")
+                },
+            )
+        } catch (e) {
+            logError(e as Error, "bluetooth: could not connect to bluez")
         }
-    },
-)
+    }
+}
 
 export default Bluetooth

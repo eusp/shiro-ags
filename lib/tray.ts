@@ -262,149 +262,153 @@ export class TrayItem {
 
 // ─── Watcher / Tray singleton ───────────────────────────────────────────
 
-const Tray = GObject.registerClass(
-    {
-        GTypeName: "ShiroTray",
-        Properties: {
-            items: GObject.ParamSpec.jsobject("items", "items", "items", GObject.ParamFlags.READABLE),
-        },
-    },
-    class Tray extends GObject.Object {
-        static _instance: InstanceType<typeof Tray> | null = null
-        static get_default() {
-            if (!Tray._instance) Tray._instance = new Tray()
-            return Tray._instance
-        }
+class Tray extends GObject.Object {
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: "ShiroTray",
+                Properties: {
+                    items: GObject.ParamSpec.jsobject("items", "items", "items", GObject.ParamFlags.READABLE),
+                },
+            },
+            this,
+        )
+    }
 
-        private _items = new Map<string, TrayItem>()
-        private _connection: any = null
+    static _instance: InstanceType<typeof Tray> | null = null
+    static get_default() {
+        if (!Tray._instance) Tray._instance = new Tray()
+        return Tray._instance
+    }
 
-        constructor() {
-            super()
-            // Deferred: owning the StatusNotifierWatcher name and fetching each
-            // tray item's synchronous DBusMenu layout can take a noticeable
-            // moment, which would otherwise block the UI from becoming
-            // interactive at startup.
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                this._own()
-                return GLib.SOURCE_REMOVE
-            })
-        }
+    private _items = new Map<string, TrayItem>()
+    private _connection: any = null
 
-        get items(): TrayItem[] {
-            return Array.from(this._items.values())
-        }
+    constructor() {
+        super()
+        // Deferred: owning the StatusNotifierWatcher name and fetching each
+        // tray item's synchronous DBusMenu layout can take a noticeable
+        // moment, which would otherwise block the UI from becoming
+        // interactive at startup.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._own()
+            return GLib.SOURCE_REMOVE
+        })
+    }
 
-        private _register(busName: string, objectPath: string) {
-            const id = `${busName}${objectPath}`
-            if (this._items.has(id)) return
-            this._items.set(id, new TrayItem(busName, objectPath))
-            this.notify("items")
-            if (this._connection) {
-                try {
-                    this._connection.emit_signal(
-                        null,
-                        WATCHER_OBJECT_PATH,
-                        WATCHER_IFACE_NAME,
-                        "StatusNotifierItemRegistered",
-                        new GLib.Variant("(s)", [id]),
-                    )
-                } catch (e) {
-                    logError(e as Error, "shiro-tray: failed to emit StatusNotifierItemRegistered")
-                }
+    get items(): TrayItem[] {
+        return Array.from(this._items.values())
+    }
+
+    private _register(busName: string, objectPath: string) {
+        const id = `${busName}${objectPath}`
+        if (this._items.has(id)) return
+        this._items.set(id, new TrayItem(busName, objectPath))
+        this.notify("items")
+        if (this._connection) {
+            try {
+                this._connection.emit_signal(
+                    null,
+                    WATCHER_OBJECT_PATH,
+                    WATCHER_IFACE_NAME,
+                    "StatusNotifierItemRegistered",
+                    new GLib.Variant("(s)", [id]),
+                )
+            } catch (e) {
+                logError(e as Error, "shiro-tray: failed to emit StatusNotifierItemRegistered")
             }
         }
+    }
 
-        private _own() {
-            // Uses the raw register_object API (not DBusExportedObject.wrapJSObject)
-            // because RegisterStatusNotifierItem needs the caller's bus name, and
-            // wrapJSObject in this GJS version always passes a null invocation —
-            // register_object's method_call handler gets the real sender directly.
-            Gio.bus_own_name(
-                Gio.BusType.SESSION,
-                WATCHER_BUS_NAME,
-                Gio.BusNameOwnerFlags.NONE,
-                (connection: any) => {
-                    this._connection = connection
-                    const nodeInfo = Gio.DBusNodeInfo.new_for_xml(WATCHER_IFACE_XML)
-                    const ifaceInfo = nodeInfo.lookup_interface(WATCHER_IFACE_NAME)
+    private _own() {
+        // Uses the raw register_object API (not DBusExportedObject.wrapJSObject)
+        // because RegisterStatusNotifierItem needs the caller's bus name, and
+        // wrapJSObject in this GJS version always passes a null invocation —
+        // register_object's method_call handler gets the real sender directly.
+        Gio.bus_own_name(
+            Gio.BusType.SESSION,
+            WATCHER_BUS_NAME,
+            Gio.BusNameOwnerFlags.NONE,
+            (connection: any) => {
+                this._connection = connection
+                const nodeInfo = Gio.DBusNodeInfo.new_for_xml(WATCHER_IFACE_XML)
+                const ifaceInfo = nodeInfo.lookup_interface(WATCHER_IFACE_NAME)
 
-                    connection.register_object(
-                        WATCHER_OBJECT_PATH,
-                        ifaceInfo,
-                        (_conn: any, sender: string, _objPath: string, _iface: string, method: string, params: GLib.Variant, invocation: any) => {
-                            if (method === "RegisterStatusNotifierItem") {
-                                const [service] = params.deep_unpack() as [string]
-                                // Clients disagree on what `service` contains: some pass just
-                                // their bus name (default object path applies), some pass
-                                // "busname/path" combined, and some (e.g.
-                                // libayatana-appindicator, seen from rustdesk) pass only the
-                                // object path and expect the watcher to use the call's sender
-                                // as the bus name.
-                                let busName: string
-                                let objectPath: string
-                                if (service.startsWith("/")) {
-                                    busName = sender
-                                    objectPath = service
+                connection.register_object(
+                    WATCHER_OBJECT_PATH,
+                    ifaceInfo,
+                    (_conn: any, sender: string, _objPath: string, _iface: string, method: string, params: GLib.Variant, invocation: any) => {
+                        if (method === "RegisterStatusNotifierItem") {
+                            const [service] = params.deep_unpack() as [string]
+                            // Clients disagree on what `service` contains: some pass just
+                            // their bus name (default object path applies), some pass
+                            // "busname/path" combined, and some (e.g.
+                            // libayatana-appindicator, seen from rustdesk) pass only the
+                            // object path and expect the watcher to use the call's sender
+                            // as the bus name.
+                            let busName: string
+                            let objectPath: string
+                            if (service.startsWith("/")) {
+                                busName = sender
+                                objectPath = service
+                            } else {
+                                const slash = service.indexOf("/")
+                                if (slash !== -1) {
+                                    busName = service.slice(0, slash)
+                                    objectPath = service.slice(slash)
                                 } else {
-                                    const slash = service.indexOf("/")
-                                    if (slash !== -1) {
-                                        busName = service.slice(0, slash)
-                                        objectPath = service.slice(slash)
-                                    } else {
-                                        busName = service
-                                        objectPath = "/StatusNotifierItem"
-                                    }
+                                    busName = service
+                                    objectPath = "/StatusNotifierItem"
                                 }
-                                this._register(busName, objectPath)
                             }
-                            invocation.return_value(null)
-                        },
-                        (_conn: any, _sender: string, _objPath: string, _iface: string, propertyName: string) => {
-                            if (propertyName === "RegisteredStatusNotifierItems") {
-                                return new GLib.Variant("as", Array.from(this._items.keys()))
-                            }
-                            if (propertyName === "IsStatusNotifierHostRegistered") {
-                                return new GLib.Variant("b", true)
-                            }
-                            if (propertyName === "ProtocolVersion") {
-                                return new GLib.Variant("i", 0)
-                            }
-                            return null
-                        },
-                        null,
-                    )
+                            this._register(busName, objectPath)
+                        }
+                        invocation.return_value(null)
+                    },
+                    (_conn: any, _sender: string, _objPath: string, _iface: string, propertyName: string) => {
+                        if (propertyName === "RegisteredStatusNotifierItems") {
+                            return new GLib.Variant("as", Array.from(this._items.keys()))
+                        }
+                        if (propertyName === "IsStatusNotifierHostRegistered") {
+                            return new GLib.Variant("b", true)
+                        }
+                        if (propertyName === "ProtocolVersion") {
+                            return new GLib.Variant("i", 0)
+                        }
+                        return null
+                    },
+                    null,
+                )
 
-                    // Watch every session-bus name loss to prune items whose owner disappeared —
-                    // StatusNotifierItemUnregistered isn't reliably called by clients on exit.
-                    connection.signal_subscribe(
-                        "org.freedesktop.DBus",
-                        "org.freedesktop.DBus",
-                        "NameOwnerChanged",
-                        "/org/freedesktop/DBus",
-                        null,
-                        Gio.DBusSignalFlags.NONE,
-                        (_c: any, _sender: string, _path: string, _iface: string, _signal: string, params: GLib.Variant) => {
-                            const [name, , newOwner] = params.deep_unpack() as [string, string, string]
-                            if (newOwner) return
-                            for (const [id] of this._items) {
-                                if (id.startsWith(name)) {
-                                    this._items.delete(id)
-                                    this.notify("items")
-                                }
+                // Watch every session-bus name loss to prune items whose owner disappeared —
+                // StatusNotifierItemUnregistered isn't reliably called by clients on exit.
+                connection.signal_subscribe(
+                    "org.freedesktop.DBus",
+                    "org.freedesktop.DBus",
+                    "NameOwnerChanged",
+                    "/org/freedesktop/DBus",
+                    null,
+                    Gio.DBusSignalFlags.NONE,
+                    (_c: any, _sender: string, _path: string, _iface: string, _signal: string, params: GLib.Variant) => {
+                        const [name, , newOwner] = params.deep_unpack() as [string, string, string]
+                        if (newOwner) return
+                        for (const [id] of this._items) {
+                            if (id.startsWith(name)) {
+                                this._items.delete(id)
+                                this.notify("items")
                             }
-                        },
-                    )
-                },
-                () => {},
-                () => {
-                    logError(
-                        new Error("shiro-tray: could not own org.kde.StatusNotifierWatcher — is another tray host running?"),
-                    )
-                },
-            )
-        }
-    },
-)
+                        }
+                    },
+                )
+            },
+            () => {},
+            () => {
+                logError(
+                    new Error("shiro-tray: could not own org.kde.StatusNotifierWatcher — is another tray host running?"),
+                )
+            },
+        )
+    }
+}
 
 export default Tray

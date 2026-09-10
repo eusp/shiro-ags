@@ -77,131 +77,135 @@ export class Notification {
     }
 }
 
-const Notifd = GObject.registerClass(
-    {
-        GTypeName: "ShiroNotifd",
-        Signals: {
-            notified: { param_types: [GObject.TYPE_UINT] },
-            resolved: { param_types: [GObject.TYPE_UINT] },
-        },
-    },
-    class Notifd extends GObject.Object {
-        static _instance: InstanceType<typeof Notifd> | null = null
-        static get_default() {
-            if (!Notifd._instance) Notifd._instance = new Notifd()
-            return Notifd._instance
-        }
+class Notifd extends GObject.Object {
+    static {
+        GObject.registerClass(
+            {
+                GTypeName: "ShiroNotifd",
+                Signals: {
+                    notified: { param_types: [GObject.TYPE_UINT] },
+                    resolved: { param_types: [GObject.TYPE_UINT] },
+                },
+            },
+            this,
+        )
+    }
 
-        private _notifications = new Map<number, Notification>()
-        private _nextId = 1
-        private _exported: any = null
+    static _instance: InstanceType<typeof Notifd> | null = null
+    static get_default() {
+        if (!Notifd._instance) Notifd._instance = new Notifd()
+        return Notifd._instance
+    }
 
-        constructor() {
-            super()
-            // Deferred so owning org.freedesktop.Notifications doesn't block
-            // the UI from becoming interactive at startup.
-            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                this._own()
-                return GLib.SOURCE_REMOVE
-            })
-        }
+    private _notifications = new Map<number, Notification>()
+    private _nextId = 1
+    private _exported: any = null
 
-        get_notifications(): Notification[] {
-            return Array.from(this._notifications.values())
-        }
+    constructor() {
+        super()
+        // Deferred so owning org.freedesktop.Notifications doesn't block
+        // the UI from becoming interactive at startup.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._own()
+            return GLib.SOURCE_REMOVE
+        })
+    }
 
-        get_notification(id: number): Notification | undefined {
-            return this._notifications.get(id)
-        }
+    get_notifications(): Notification[] {
+        return Array.from(this._notifications.values())
+    }
 
-        _close(id: number, reason: number) {
-            if (!this._notifications.has(id)) return
-            this._notifications.delete(id)
+    get_notification(id: number): Notification | undefined {
+        return this._notifications.get(id)
+    }
 
-            if (this._exported) {
-                try {
-                    this._exported.emit_signal(
-                        "NotificationClosed",
-                        new GLib.Variant("(uu)", [id, reason]),
-                    )
-                } catch (e) {
-                    logError(e as Error, "notifd: failed to emit NotificationClosed")
-                }
+    _close(id: number, reason: number) {
+        if (!this._notifications.has(id)) return
+        this._notifications.delete(id)
+
+        if (this._exported) {
+            try {
+                this._exported.emit_signal(
+                    "NotificationClosed",
+                    new GLib.Variant("(uu)", [id, reason]),
+                )
+            } catch (e) {
+                logError(e as Error, "notifd: failed to emit NotificationClosed")
             }
-
-            this.emit("resolved", id)
         }
 
-        // Shared by the D-Bus Notify() method and notify() below (AGS code
-        // raising its own local notifications, e.g. a low-battery warning)
-        // so both paths show up identically in the notification widgets.
-        _create(
-            id: number,
-            appName: string,
-            appIcon: string,
-            summary: string,
-            body: string,
-            expireTimeoutMs: number,
-        ): number {
-            this._notifications.set(
-                id,
-                new Notification(this, id, { app_name: appName, app_icon: appIcon, summary, body }),
-            )
+        this.emit("resolved", id)
+    }
 
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, expireTimeoutMs, () => {
-                this._close(id, REASON_EXPIRED)
-                return GLib.SOURCE_REMOVE
-            })
+    // Shared by the D-Bus Notify() method and notify() below (AGS code
+    // raising its own local notifications, e.g. a low-battery warning)
+    // so both paths show up identically in the notification widgets.
+    _create(
+        id: number,
+        appName: string,
+        appIcon: string,
+        summary: string,
+        body: string,
+        expireTimeoutMs: number,
+    ): number {
+        this._notifications.set(
+            id,
+            new Notification(this, id, { app_name: appName, app_icon: appIcon, summary, body }),
+        )
 
-            this.emit("notified", id)
-            return id
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, expireTimeoutMs, () => {
+            this._close(id, REASON_EXPIRED)
+            return GLib.SOURCE_REMOVE
+        })
+
+        this.emit("notified", id)
+        return id
+    }
+
+    private _own() {
+        const impl = {
+            Notify: (
+                appName: string,
+                replacesId: number,
+                appIcon: string,
+                summary: string,
+                body: string,
+                _actions: string[],
+                hints: Record<string, GLib.Variant>,
+                expireTimeout: number,
+            ) => {
+                const id = replacesId > 0 ? replacesId : this._nextId++
+                if (id >= this._nextId) this._nextId = id + 1
+
+                const icon = appIcon || hints?.["image-path"]?.deep_unpack?.() || ""
+                const timeoutMs = expireTimeout > 0 ? expireTimeout : DEFAULT_TIMEOUT_MS
+
+                return this._create(id, appName, icon, summary, body, timeoutMs)
+            },
+            CloseNotification: (id: number) => {
+                this._close(id, REASON_CLOSE_CALL)
+            },
+            GetCapabilities: () => ["body", "actions", "icon-static"],
+            GetServerInformation: () => ["shiro-notifd", "shiro-theme", "1.0", "1.2"],
         }
 
-        private _own() {
-            const impl = {
-                Notify: (
-                    appName: string,
-                    replacesId: number,
-                    appIcon: string,
-                    summary: string,
-                    body: string,
-                    _actions: string[],
-                    hints: Record<string, GLib.Variant>,
-                    expireTimeout: number,
-                ) => {
-                    const id = replacesId > 0 ? replacesId : this._nextId++
-                    if (id >= this._nextId) this._nextId = id + 1
-
-                    const icon = appIcon || hints?.["image-path"]?.deep_unpack?.() || ""
-                    const timeoutMs = expireTimeout > 0 ? expireTimeout : DEFAULT_TIMEOUT_MS
-
-                    return this._create(id, appName, icon, summary, body, timeoutMs)
-                },
-                CloseNotification: (id: number) => {
-                    this._close(id, REASON_CLOSE_CALL)
-                },
-                GetCapabilities: () => ["body", "actions", "icon-static"],
-                GetServerInformation: () => ["shiro-notifd", "shiro-theme", "1.0", "1.2"],
-            }
-
-            Gio.bus_own_name(
-                Gio.BusType.SESSION,
-                "org.freedesktop.Notifications",
-                Gio.BusNameOwnerFlags.NONE,
-                (connection: any) => {
-                    this._exported = Gio.DBusExportedObject.wrapJSObject(IFACE_XML, impl)
-                    this._exported.export(connection, "/org/freedesktop/Notifications")
-                },
-                () => {},
-                () => {
-                    logError(
-                        new Error("shiro-notifd: could not own org.freedesktop.Notifications — is another notification daemon running?"),
-                    )
-                },
-            )
-        }
-    },
-)
+        Gio.bus_own_name(
+            Gio.BusType.SESSION,
+            "org.freedesktop.Notifications",
+            Gio.BusNameOwnerFlags.NONE,
+            (connection: any) => {
+                this._exported = Gio.DBusExportedObject.wrapJSObject(IFACE_XML, impl)
+                this._exported.export(connection, "/org/freedesktop/Notifications")
+            },
+            () => {},
+            () => {
+                logError(
+                    new Error("shiro-notifd: could not own org.freedesktop.Notifications — is another notification daemon running?"),
+                )
+            },
+        )
+    }
+}
 
 // For AGS code (not external D-Bus clients) to raise its own notifications —
 // e.g. a low-battery warning — through the same daemon so they render in the
