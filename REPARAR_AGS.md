@@ -1,77 +1,52 @@
-# Guía de Reparación y Réplica de AGS (Astal) en Nobara/Fedora
+# Guía de Reparación de AGS en Nobara/Fedora
 
-Esta guía detalla el problema ocurrido con las librerías de AGS (Aylur's Gtk Shell v2 / Astal) tras una actualización del sistema o limpieza de paquetes, y explica paso a paso cómo repararlo o replicarlo desde cero en cualquier otra PC con Fedora o Nobara.
+Qué se rompió en el pasado, por qué ya no debería volver a pasar, y qué revisar si AGS no arranca.
 
 ---
 
-## 1. El Problema: ¿Por qué se rompió AGS?
+## 1. Historial: por qué se rompía AGS
 
-Al realizar actualizaciones de paquetes (`dnf upgrade`) o limpiezas finas del sistema:
-1. El repositorio COPR de desarrollo original (`fbeigbeder/astal`) **fue dado de baja o modificado por su autor** (retornando un error *404 Not Found*).
-2. Durante el proceso de actualización o autoremove, Fedora/Nobara detectó que las librerías instaladas (`aylurs-gtk-shell`, `libastal-hyprland`, `libastal-battery`, etc.) eran **paquetes huérfanos** (sin un repositorio de origen activo) y **las desinstaló automáticamente**.
-3. Esto dejó al binario de AGS sin sus dependencias principales de GObject Introspection, arrojando el siguiente error al intentar ejecutarse:
+1. **Repositorio COPR dado de baja.** El COPR original (`fbeigbeder/astal`) desapareció (*404 Not Found*).
+   Fedora marcó `aylurs-gtk-shell` y los `libastal-*` como huérfanos y los desinstaló en un
+   `dnf upgrade`/`autoremove`, dejando el error:
    ```log
    JS ERROR: Error: Requiring Astal, version 4.0: Typelib file for namespace 'Astal', version '4.0' not found
    ```
+2. **`astal-libs` desincronizado con Hyprland.** Después se usó `astal-libs` (un solo paquete con
+   todos los módulos) desde `solopasha/hyprland`. Cada vez que Hyprland se actualizaba, el build de
+   `astal-libs` quedaba viejo: errores en bucle y ~60% de CPU sostenido.
+
+## 2. Cómo está resuelto ahora
+
+- **Sin `astal-libs`:** los módulos AstalHyprland, AstalNetwork, AstalBattery, etc. se reemplazaron
+  por integraciones propias en `lib/` (hyprctl, D-Bus, wpctl). Solo se depende del core:
+  `astal-io` y `astal-gtk4`.
+- **Astal core** viene del COPR `sdegler/hyprland` (`solopasha/hyprland` quedó deshabilitado).
+- **AGS v3** está compilado desde el código fuente en `~/ags` e instalado en `/usr/local`,
+  así que ningún `dnf` lo puede desinstalar.
+- **Hyprland 0.55+ con config en Lua:** los `hyprctl dispatch` clásicos y `hyprctl keyword` no
+  funcionan; el código usa `hyprctl dispatch "hl.dsp.…"` y `hyprctl switchxkblayout`.
+
+La instalación completa desde cero está en `SETUP.md`.
 
 ---
 
-## 2. La Solución Moderna (Fedora 43 / Nobara 43)
+## 3. Si AGS no arranca
 
-Para solucionar esto de manera robusta, se utiliza el repositorio COPR oficial y mantenido de la comunidad de Hyprland: **`solopasha/hyprland`**.
-
-### Ventaja de la nueva versión:
-En esta versión empaquetada, ya no es necesario instalar 8 paquetes individuales para cada plugin (batería, bluetooth, red, etc.). **Todos los plugins y librerías de Astal se han consolidado en un único paquete llamado `astal-libs`**.
-
----
-
-## 3. Instrucciones de Instalación / Réplica (Paso a Paso)
-
-Ejecuta estos comandos en cualquier terminal de la PC donde desees instalar o reparar AGS:
-
-### Paso 1: Habilitar el nuevo repositorio Copr
-Este repositorio proporciona las compilaciones actualizadas de Astal y AGS para tu versión de Fedora/Nobara.
+Ejecútalo a mano para ver el error:
 ```bash
-sudo dnf copr enable solopasha/hyprland -y
+ags quit; ags run ~/.config/ags/app.ts
 ```
 
-### Paso 2: Instalar todo el ecosistema de Astal sin conflictos
-> [!IMPORTANT]
-> El repositorio del sistema (`terra`) a veces incluye paquetes base de `astal` que entran en conflicto de archivos con la versión extendida de Copr. 
-> Para evitar colisiones y asegurar una compatibilidad del 100%, **debemos desactivar temporalmente el repositorio `terra` usando el flag `--disablerepo=terra` durante esta instalación**:
+| Síntoma | Causa probable | Solución |
+|---|---|---|
+| `Typelib file for namespace 'Astal', version '4.0' not found` | Se desinstaló `astal-gtk4`/`astal-io` | `sudo dnf install astal-io astal-gtk4` (COPR `sdegler/hyprland`) |
+| `ags: command not found` | Se borró `/usr/local/bin/ags` | `cd ~/ags && git pull && sudo meson install -C build` |
+| Error de símbolo/librería al iniciar AGS tras actualizar el sistema | AGS compilado contra versiones viejas de Astal/gjs | `cd ~/ags && meson setup --wipe build && sudo meson install -C build` |
+| Botones de Hyprland (salir, layout de teclado) no hacen nada | Sintaxis clásica de `hyprctl` con config en Lua | Usar `hl.dsp.*` / `switchxkblayout` (ver commits `6ef0b09`, `51328c5`) |
+| Los estilos no cargan | Falta `sass` en el `PATH` | Instalar dart-sass |
 
+Verificación rápida del core de Astal:
 ```bash
-sudo dnf install astal astal-gjs astal-gtk4 astal-io astal-libs --disablerepo=terra -y
+gjs -c "imports.gi.versions.Astal = '4.0'; imports.gi.Astal; imports.gi.AstalIO; log('Astal OK')"
 ```
-
-* **`astal`**: El motor base de Astal.
-* **`astal-gjs`**: Las conexiones de GJS (Gnome Javascript) para ejecutar el código.
-* **`astal-gtk4`**: Proporciona el namespace `Astal-4.0` (¡resuelve el error principal!).
-* **`astal-io`**: Control de entrada/salida y llamadas de sistema.
-* **`astal-libs`**: Contiene todos los plugins unificados (Batería, Red, Bluetooth, MPRIS/Audio, Tray, Wireplumber y Hyprland).
-
----
-
-## 4. Verificación y Puesta en Marcha
-
-Una vez completada la instalación, puedes verificar que tu sistema reconozca correctamente todas las librerías ejecutando esta prueba rápida en la terminal:
-
-```bash
-gjs -c "imports.gi.versions.Astal = '4.0'; imports.gi.versions.AstalBattery = '0.1'; imports.gi.versions.AstalHyprland = '0.1'; const Astal = imports.gi.Astal; const Battery = imports.gi.AstalBattery; const Hyprland = imports.gi.AstalHyprland; log('¡Sistema Astal verificado y listo!');"
-```
-
-Si el comando responde con `JS LOG: ¡Sistema Astal verificado y listo!`, ¡estás listo para lanzar tu barra!
-
-### Ejecutar AGS:
-Entra a la carpeta de tu configuración y lánzala en segundo plano:
-```bash
-cd ~/.config/ags
-npm run dev &
-```
-
-O directamente de forma global:
-```bash
-ags run ~/.config/ags &
-```
-
----

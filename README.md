@@ -1,6 +1,6 @@
 # AGS Configuration - Antigravity Edition
 
-Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minimalista y funcional, diseñada para Hyprland en Nobara Linux.
+Una configuración de AGS (Aylur's GTK Shell) v3 altamente personalizada, minimalista y funcional, diseñada para Hyprland en Nobara Linux.
 
 ## ✨ Características Principales
 
@@ -18,7 +18,8 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
     - Lanzador de aplicaciones dinámico que rastrea el workspace actual.
     - **Fijado (Pinning) Persistente:** Opciones de menú contextual para anclar y desanclar aplicaciones favoritas.
     - Visualizador de audio reactivo con escala logarítmica (20Hz-20kHz).
-    - Controles de medios integrados.
+    - Controles de medios integrados (se colapsan cuando no hay nada reproduciéndose).
+    - Botones para enviar el audio al otro equipo (PC ↔ laptop) vía `scripts/audio-route.sh`.
 - **Menú Derecho (RightMenu)**:
     - Configuración rápida (Mute, Bluetooth, WiFi).
     - Centro de notificaciones.
@@ -38,7 +39,7 @@ Una configuración de AGS (Aylur's GTK Shell) v2 altamente personalizada, minima
 
 ## 🛠️ Tecnologías
 
-- **AGS (Astal/GTK4)**: Framework principal — solo el core (`astal-io`, `astal-gtk4`).
+- **AGS v3 (Astal/GTK4)**: Framework principal — de Astal solo se usa `Astal.Window` (`astal-gtk4`). AGS ejecuta los `.ts`/`.tsx` directamente, sin paso de compilación.
 - **TypeScript**: Para una lógica robusta y tipada.
 - **SCSS**: Estilos modulares y variables.
 - **cliphist**: Para la gestión del portapapeles.
@@ -62,12 +63,15 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
 
 ## 🚀 Instalación y Uso
 
-1.  Asegúrate de tener `ags` (v2) instalado.
+1.  Instala las dependencias y AGS v3 siguiendo [SETUP.md](SETUP.md).
 2.  Clona el repositorio en `~/.config/ags`.
 3.  Ejecuta con:
     ```bash
-    ags run app.ts
+    ags run ~/.config/ags/app.ts
     ```
+
+> No ejecutes `tsc` para "compilar": generaría un `.js` al lado de cada archivo. Para revisar tipos usa `npm run check` (no emite nada).
+> Si AGS deja de arrancar, revisa [REPARAR_AGS.md](REPARAR_AGS.md).
 
 ## 📂 Estructura del Proyecto
 
@@ -77,6 +81,8 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
     - `TopBar/`: Widgets de la barra superior.
         - `Clock.tsx`: Reloj + popover de calendario, reloj digital y notificaciones.
     - `SideBar/`, `RightMenu/`: Widgets específicos de cada sección.
+- `scripts/`: Scripts de shell usados por los widgets (`audio-route.sh`).
+- `notes.json`, `pinned.json`, `bt-devices.json`: estado local (notas, apps ancladas, dispositivos Bluetooth recordados). No están en git; se crean solos.
 - `styles/`: Archivos SCSS organizados por componentes.
     - `colors.scss`: Variables CSS del tema activo (auto-generado por shiro-theme, no editar).
     - `popovers.scss`: Sistema global de estilos para todos los popovers/menús.
