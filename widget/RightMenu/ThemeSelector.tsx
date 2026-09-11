@@ -182,8 +182,8 @@ function applyTheme(slug: string, data: ThemeColors, mode: WallpaperMode) {
         .then(() => {
             execAsync(["hyprctl", "reload"]).catch(() => { })
             reloadWallpaper()
-            // Apply GRUB theme with sudo (requires sudoers rule — see README)
-            execAsync(["sudo", "-n", "node", `${SHIRO_DIR}/build-grub.js`]).catch(() => { })
+            // Apply boot theme (GRUB or Limine) with sudo (requires sudoers rule — see shiro-theme README)
+            execAsync(["sudo", "-n", "node", `${SHIRO_DIR}/build-boot.js`]).catch(() => { })
         })
         .catch(() => { })
         .finally(() => isApplying.set(false))
