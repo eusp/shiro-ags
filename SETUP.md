@@ -133,9 +133,15 @@ Tipos para el editor y `npm run check`:
   (`/usr/local/share/ags/js`), no en esta configuración.
 
 ## 6. Iconos y Fuentes
-Esta configuración utiliza **Iconos Simbólicos de GTK** estándar y una Nerd Font.
+Los íconos de aplicación (sidebar, preview de apps por workspace en la topbar) se resuelven a partir
+del `Icon=` real del `.desktop` de cada app (`lib/icons.ts`), no adivinando nombres — así que el tema
+de iconos que uses necesita variedad de íconos de apps a color, no solo los simbólicos de Adwaita.
 
-- **Paquete de Iconos**: Adwaita (o cualquier tema de iconos GTK que incluya iconos simbólicos).
+- **Paquete de Iconos recomendado**: [Papirus](https://github.com/PapirusDevelopmentTeam/papirus-icon-theme)
+  (`papirus-icon-theme` en Arch/CachyOS, repo `extra`) — flat, gran cobertura de apps, ~110 MB instalado.
+  Activalo con `gsettings set org.gnome.desktop.interface icon-theme 'Papirus-Dark'` (o `'Papirus'` para
+  el tema claro) y, si usás apps GTK3 sin un daemon de xsettings corriendo, replicá el mismo nombre en
+  `~/.config/gtk-3.0/settings.ini` y `~/.config/gtk-4.0/settings.ini` (`gtk-icon-theme-name=Papirus-Dark`).
 - **Fuente Recomendada**: `JetBrainsMono Nerd Font`.
 
 ```bash
@@ -151,3 +157,4 @@ sudo dnf install jetbrains-mono-fonts-all # Luego instala manualmente la versió
     - Debe existir un dispositivo en `/sys/class/backlight/` (`brightnessctl -c backlight -l` lo lista). Los monitores externos por VGA/HDMI normalmente **no** lo exponen — en ese caso el widget se oculta solo.
     - Puede requerir pertenecer al grupo `video`: `sudo usermod -aG video $USER` (cierra sesión y vuelve a entrar).
 - **Enviar audio a otro equipo (SideBar)**: `scripts/audio-route.sh` usa `ssh` sin contraseña (llaves) y `pactl` entre `nobara-pc` y `nobara-laptop`.
+- **Idioma de teclado (TopBar)**: `hyprctl devices -j` puede listar varios "teclados" (mouse con teclas propias, cada sub-interfaz HID de un teclado mecánico, botones de power, etc.) — `KeyboardLayout.tsx` usa el que Hyprland marca con `"main": true`, no el primero de la lista, para no terminar cambiándole el idioma a un dispositivo que nadie usa para escribir.

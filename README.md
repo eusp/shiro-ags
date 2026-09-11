@@ -65,6 +65,7 @@ Los módulos de integración con el sistema (`AstalHyprland`, `AstalNotifd`, `As
 - `lib/mpris.ts` — MPRIS2 por D-Bus.
 - `lib/wp.ts` — `wpctl`/`pactl subscribe` (WirePlumber no tiene una API D-Bus simple).
 - `lib/apps.ts` — `Gio.AppInfo` directo.
+- `lib/icons.ts` — resuelve el ícono real de una app (desde su `.desktop`, por `wm_class`/id/nombre) para la sidebar y el preview de apps por workspace en la topbar, en vez de adivinar nombres `<algo>-symbolic` que la mayoría de los temas de iconos no tienen por app.
 
 Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión que Hyprland/el resto del sistema — el problema que rompía todo (errores en bucle, ~60% de CPU sostenido) al actualizar Hyprland no debería volver a pasar.
 
@@ -82,7 +83,7 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
 
 ## 📂 Estructura del Proyecto
 
-- `lib/`: Servicios de estado persistente (`pins.ts`, `notesStore.ts`) y las integraciones de sistema propias descritas arriba (`hyprland.ts`, `notifd.ts`, `battery.ts`, `tray.ts`, `network.ts`, `bluetooth.ts`, `mpris.ts`, `wp.ts`, `apps.ts`).
+- `lib/`: Servicios de estado persistente (`pins.ts`, `notesStore.ts`) y las integraciones de sistema propias descritas arriba (`hyprland.ts`, `notifd.ts`, `battery.ts`, `tray.ts`, `network.ts`, `bluetooth.ts`, `mpris.ts`, `wp.ts`, `apps.ts`, `icons.ts`).
 - `widget/`: Todos los componentes de la interfaz.
     - `Shared/`: Componentes reutilizables (ej. `MenuPopover.tsx`).
     - `TopBar/`: Widgets de la barra superior.
