@@ -72,13 +72,54 @@ export default function BluetoothIndicator() {
 
     const icon = new Gtk.Image()
     const menubutton = new Gtk.MenuButton({ child: icon })
-    const toggleLabel = new Gtk.Label({ label: "", hexpand: true, xalign: 0 })
 
     let isScanning = false
     let autoReconnectAttempted = false
     let currentDiscovered: Map<string, SavedDevice> = new Map()
 
+    // Mismo esquema que Network.tsx: una fila de estado + una fila de
+    // control arriba (tamaño estable, nunca cambian de alto), y todo lo
+    // que puede aparecer/desaparecer (mensajes, dispositivos) vive dentro
+    // del scrolled de abajo, que tiene alto fijo. El popover vive en una
+    // superficie de layer-shell: si el contenido cambia de tamaño total
+    // después de abierto, Hyprland lo descarta en vez de redimensionarlo,
+    // así que todo lo dinámico tiene que quedar contenido ahí adentro.
+    const statusIcon = new Gtk.Image({ iconName: "bluetooth-disabled-symbolic" })
+    const statusLine = new Gtk.Label({ label: "", halign: Gtk.Align.START, hexpand: true, ellipsize: 3 })
+    const statusInner = new Gtk.Box({ spacing: 8 })
+    statusInner.append(statusIcon)
+    statusInner.append(statusLine)
+    const statusRow = new Gtk.Box({ spacing: 4, cssClasses: ["popover-item"] })
+    statusRow.append(statusInner)
+
+    const toggleLabel = new Gtk.Label({ label: "Bluetooth", xalign: 0 })
+    const powerSwitch = new Gtk.Switch({
+        valign: Gtk.Align.CENTER,
+        halign: Gtk.Align.END,
+        hexpand: true,
+        cssClasses: ["compact-switch"],
+    })
+
+    const scanSpinner = new Gtk.Spinner({ visible: false })
+    const scanBtn = new Gtk.Button({
+        cssClasses: ["popover-icon-btn"],
+        valign: Gtk.Align.CENTER,
+        child: (() => {
+            const b = new Gtk.Box({ spacing: 4 })
+            b.append(new Gtk.Image({ iconName: "system-search-symbolic" }))
+            b.append(scanSpinner)
+            return b
+        })()
+    })
+
+    const toggleRow = new Gtk.Box({ spacing: 8, cssClasses: ["popover-row"] })
+    toggleRow.append(toggleLabel)
+    toggleRow.append(scanBtn)
+    toggleRow.append(powerSwitch)
+
     // Aviso breve de error (falla al conectar/emparejar), se oculta solo.
+    // Vive dentro del scrolled de alto fijo, así que mostrarlo/ocultarlo
+    // no cambia el tamaño total del popover.
     const statusLabel = new Gtk.Label({
         label: "",
         cssClasses: ["bt-status-error"],
@@ -156,19 +197,6 @@ export default function BluetoothIndicator() {
         return slot
     }
     const savedSlots = Array.from({ length: 10 }, makeSlot)
-
-    // Botón buscar
-    const scanSpinner = new Gtk.Spinner({ visible: false })
-    const scanBtn = new Gtk.Button({
-        cssClasses: ["popover-item"],
-        child: (() => {
-            const b = new Gtk.Box({ spacing: 8 })
-            b.append(new Gtk.Image({ iconName: "network-wireless-acquiring-symbolic" }))
-            b.append(new Gtk.Label({ label: "Buscar", hexpand: true, xalign: 0 }))
-            b.append(scanSpinner)
-            return b
-        })()
-    })
 
     // Slots para dispositivos del scan
     const scanSectionLabel = new Gtk.Label({
@@ -291,8 +319,27 @@ export default function BluetoothIndicator() {
         })
     }
 
+    // Duración fija de la búsqueda: bluez la sigue haciendo indefinidamente
+    // si nadie le manda StopDiscovery, así que sin este límite el ícono de
+    // carga (y el escaneo real) quedan corriendo para siempre.
+    const SCAN_DURATION_MS = 12000
+    let scanHandlerId = 0
+    let scanPollId = 0
+    let scanStopId = 0
+
+    const stopScan = () => {
+        if (!isScanning) return
+        isScanning = false
+        scanSpinner.visible = false
+        scanSpinner.spinning = false
+        bt.adapter?.stop_discovery()
+        if (scanHandlerId) { bt.disconnect(scanHandlerId); scanHandlerId = 0 }
+        if (scanPollId) { GLib.source_remove(scanPollId); scanPollId = 0 }
+        if (scanStopId) { GLib.source_remove(scanStopId); scanStopId = 0 }
+    }
+
     scanBtn.connect("clicked", () => {
-        if (isScanning) return
+        if (isScanning || !bt.isPowered) return
         const adapter = bt.adapter
         if (!adapter) return
 
@@ -316,24 +363,27 @@ export default function BluetoothIndicator() {
             if (changed) updateScanSlots()
         }
 
-        const handlerId = bt.connect("notify::devices", collect)
-        const pollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        scanHandlerId = bt.connect("notify::devices", collect)
+        scanPollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
             collect()
             return GLib.SOURCE_CONTINUE
         })
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 15000, () => {
-            adapter.stop_discovery()
-            bt.disconnect(handlerId)
-            GLib.source_remove(pollId)
-            isScanning = false
-            scanSpinner.visible = false
-            scanSpinner.spinning = false
+        scanStopId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SCAN_DURATION_MS, () => {
+            scanStopId = 0
+            stopScan()
             return GLib.SOURCE_REMOVE
         })
     })
 
+    let syncingSwitch = false
+    powerSwitch.connect("notify::active", () => {
+        if (syncingSwitch) return
+        bt.adapter?.set_powered(powerSwitch.active)
+    })
+
     const listBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
+    listBox.append(statusLabel)
     listBox.append(connectedBtn)
     listBox.append(savedSectionLabel)
     savedSlots.forEach(s => listBox.append(s.row))
@@ -346,43 +396,41 @@ export default function BluetoothIndicator() {
         child: listBox,
     })
 
+    const topSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, widthRequest: 220 })
+    topSection.append(statusRow)
+    topSection.append(toggleRow)
+
     const popover = MenuPopover(menubutton, [
-        {
-            title: "Bluetooth",
-            customChild: (() => {
-                // Mismo ancho que el scrolled de abajo para que el popover
-                // no cambie de tamaño entre estados (vacío, escaneando, etc).
-                const section = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4, widthRequest: 220 })
-                const row = new Gtk.Box({ spacing: 4 })
-
-                const toggleBtn = new Gtk.Button({
-                    cssClasses: ["popover-item"],
-                    hexpand: true,
-                    child: (() => {
-                        const b = new Gtk.Box({ spacing: 8 })
-                        b.append(new Gtk.Image({ iconName: "system-shutdown-symbolic" }))
-                        b.append(toggleLabel)
-                        return b
-                    })()
-                })
-                toggleBtn.connect("clicked", () => bt.toggle())
-
-                row.append(toggleBtn)
-                row.append(scanBtn)
-                section.append(row)
-                section.append(statusLabel)
-                return section
-            })()
-        },
+        { title: "Bluetooth", customChild: topSection },
         { customChild: scrolled }
     ])
 
     menubutton.set_popover(popover)
 
     const update = () => {
+        const connected = (bt.devices || []).find((d: any) => d.connected)
+        const iconName = connected
+            ? (connected.icon || "bluetooth-symbolic")
+            : bt.isPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
+
         icon.iconName = bt.isPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
-        toggleLabel.label = bt.isPowered ? "Desactivar" : "Activar"
-        if (!bt.isPowered) autoReconnectAttempted = false
+        statusIcon.iconName = iconName
+        statusLine.label = connected
+            ? (connected.name || connected.address)
+            : bt.isPowered ? "Sin dispositivo conectado" : "Bluetooth desactivado"
+
+        syncingSwitch = true
+        powerSwitch.set_active(bt.isPowered)
+        syncingSwitch = false
+        scanBtn.sensitive = bt.isPowered
+
+        if (!bt.isPowered) {
+            autoReconnectAttempted = false
+            // Apagar el adaptador a mitad de una búsqueda no la corta sola:
+            // bluez sigue reportando "discovering" hasta que alguien manda
+            // StopDiscovery explícitamente.
+            stopScan()
+        }
         updateConnected()
         updateSavedSlots()
         updateScanSlots()

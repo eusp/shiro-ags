@@ -47,7 +47,11 @@ export default function SystemMonitor() {
     const cpuLabel = new Gtk.Label({ xalign: 0, cssClasses: ["popover-label"] })
     const memLabel = new Gtk.Label({ xalign: 0, cssClasses: ["popover-label"] })
 
-    const statsBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 10 })
+    // Ancho fijo: el popover vive en una superficie de layer-shell, y si el
+    // contenido cambia de tamaño total después de abierto (como pasaba acá,
+    // que arrancaba vacío y recién tomaba su ancho real con el primer
+    // update), Hyprland descarta el popup en vez de redimensionarlo.
+    const statsBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 10, widthRequest: 210 })
     const cpuRow = new Gtk.Box({ spacing: 8 })
     cpuRow.append(new Gtk.Image({ iconName: "computer-symbolic", cssClasses: ["dim"] }))
     cpuRow.append(new Gtk.Label({ label: "CPU:", cssClasses: ["dim"] }))
@@ -69,6 +73,11 @@ export default function SystemMonitor() {
         cpuLabel.label = getCpuUsage()
         memLabel.label = getMemUsage()
     }
+
+    // Antes se llamaba solo dentro del timeout: la primera apertura mostraba
+    // el popover vacío hasta el primer tick (hasta 2s después), y ese salto
+    // de "vacío" a "con datos" era justo el cambio de tamaño que lo cerraba.
+    update()
 
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
         if (popover.visible) update()

@@ -1,4 +1,5 @@
 import { Gtk } from "ags/gtk4"
+import GLib from "gi://GLib"
 import Network, { AccessPoint } from "../../lib/network"
 import { execAsync } from "ags/process"
 import { MenuPopover } from "../Shared/MenuPopover"
@@ -7,6 +8,11 @@ const network = Network.get_default()
 const { Connectivity } = Network
 
 const WIFI_SLOTS = 8
+// "nmcli device wifi rescan" vuelve casi al toque (solo dispara el rescan,
+// no espera a que termine), así que sin esta duración fija el ícono de
+// carga desaparecía antes de que NetworkManager terminara de escanear de
+// verdad — daba la sensación de no saber si seguía buscando o no.
+const WIFI_SCAN_DURATION_MS = 5000
 
 // Conecta por bssid; si hace falta contraseña y se pasa una, la manda.
 // Resuelve { ok, needsPassword } en vez de solo tirar la excepción, para
@@ -45,7 +51,7 @@ export default function NetworkIndicator() {
         valign: Gtk.Align.CENTER,
         halign: Gtk.Align.END,
         hexpand: true,
-        cssClasses: ["wifi-switch"],
+        cssClasses: ["compact-switch"],
     })
 
     const refreshSpinner = new Gtk.Spinner({ visible: false })
@@ -208,17 +214,37 @@ export default function NetworkIndicator() {
             : "Sin conexión"
     }
 
+    let isRefreshing = false
+    let refreshStopId = 0
+
+    // Corta el spinner/timer de la búsqueda actual, si hay una. Se usa
+    // tanto al cumplirse la duración fija como al apagar el Wi-Fi a mitad
+    // de una búsqueda (si no, el ícono de carga se quedaba pegado).
+    const stopRefresh = () => {
+        if (!isRefreshing) return
+        isRefreshing = false
+        refreshSpinner.visible = false
+        refreshSpinner.spinning = false
+        if (refreshStopId) { GLib.source_remove(refreshStopId); refreshStopId = 0 }
+    }
+
     refreshBtn.connect("clicked", () => {
+        if (isRefreshing || !network.wifiEnabled) return
+        isRefreshing = true
         refreshSpinner.visible = true
         refreshSpinner.spinning = true
         network.wifiDevice?.scan()
-        execAsync(["nmcli", "device", "wifi", "rescan"])
-            .catch(() => { })
-            .then(() => {
-                updateWifiList()
-                refreshSpinner.visible = false
-                refreshSpinner.spinning = false
-            })
+        execAsync(["nmcli", "device", "wifi", "rescan"]).catch(() => { })
+
+        // El rescan de nmcli solo dispara el escaneo y vuelve, no espera a
+        // que termine — por eso el ícono de carga se sostiene una duración
+        // fija en vez de apagarse apenas ese comando resuelve.
+        refreshStopId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, WIFI_SCAN_DURATION_MS, () => {
+            refreshStopId = 0
+            updateWifiList()
+            stopRefresh()
+            return GLib.SOURCE_REMOVE
+        })
     })
 
     let syncingWifiSwitch = false
@@ -226,6 +252,8 @@ export default function NetworkIndicator() {
         syncingWifiSwitch = true
         wifiSwitch.set_active(!!network.wifiEnabled)
         syncingWifiSwitch = false
+        refreshBtn.sensitive = !!network.wifiEnabled
+        if (!network.wifiEnabled) stopRefresh()
     }
     wifiSwitch.connect("notify::active", () => {
         if (syncingWifiSwitch) return
