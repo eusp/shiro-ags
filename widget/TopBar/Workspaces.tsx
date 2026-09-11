@@ -1,63 +1,21 @@
 import { Gtk } from "ags/gtk4"
-import Gdk from "gi://Gdk?version=4.0"
-import Gio from "gi://Gio?version=2.0"
 import Hyprland, { Client } from "../../lib/hyprland"
-import Apps from "../../lib/apps"
 import { MenuPopover } from "../Shared/MenuPopover"
+import { resolveAppIcon } from "../../lib/icons"
 
 const hypr = Hyprland.get_default()
-const apps = new Apps()
 
-// La sidebar usa íconos simbólicos (monocromo, se tiñen con el color del
-// tema vía CSS, como en la captura que mandaste) — no el logo a color de
-// cada app. El nombre "<clase>-symbolic" no siempre existe tal cual (ej.
-// Firefox reporta clase "org.mozilla.firefox" pero el ícono real está
-// registrado como "firefox"), así que se prueban varios candidatos: la
-// clase tal cual, en minúscula, y el ícono real del .desktop encontrado
-// por wm_class/id/nombre — el primero que el tema realmente tenga, gana.
-function getDesktopAppInfo(id: string): any {
-    // @ts-ignore — GioUnix.DesktopAppInfo reemplazó a Gio.DesktopAppInfo en
-    // GJS más nuevo; probar ambos como hace el resto del código.
-    const DesktopAppInfo = imports.gi.GioUnix ? imports.gi.GioUnix.DesktopAppInfo : Gio.DesktopAppInfo
-    return DesktopAppInfo.new(id)
-}
-
+// Mismo icono real (a color) que la sidebar — ver lib/icons.ts. Se
+// cachea por clase de ventana porque la búsqueda del .desktop no es
+// gratis y este preview se reconstruye en cada hover.
 const iconCache = new Map<string, string>()
-const FALLBACK_ICON = "application-x-executable-symbolic"
 
 function iconForClass(wmClass: string): string {
-    if (!wmClass) return FALLBACK_ICON
+    if (!wmClass) return "application-x-executable"
     const cached = iconCache.get(wmClass)
     if (cached) return cached
 
-    let found = FALLBACK_ICON
-    try {
-        const theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default()!)
-        const lower = wmClass.toLowerCase()
-
-        const match = apps.list.find(a => {
-            const id = (a.id || "").toLowerCase().replace(/\.desktop$/, "")
-            const wm = (a.wm_class || "").toLowerCase()
-            const name = (a.name || "").toLowerCase()
-            return wm === lower || id === lower || id.includes(lower) || lower.includes(id) || name.includes(lower)
-        })
-        const desktopIconName = match?.id
-            ? getDesktopAppInfo(match.id)?.get_icon?.()?.to_string?.()
-            : null
-
-        const candidates = [
-            `${wmClass}-symbolic`,
-            `${lower}-symbolic`,
-            desktopIconName ? `${desktopIconName}-symbolic` : null,
-            desktopIconName,
-        ].filter((c): c is string => !!c)
-
-        const hit = candidates.find(c => theme.has_icon(c))
-        if (hit) found = hit
-    } catch (e) {
-        logError(e as Error, "workspaces: icon lookup failed")
-    }
-
+    const found = resolveAppIcon(wmClass)
     iconCache.set(wmClass, found)
     return found
 }

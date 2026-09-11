@@ -58,7 +58,7 @@ export class PinsService extends GObject.Object {
                     "rustdesk.desktop",
                 ],
                 sidebar: [
-                    "ptyxis.desktop",
+                    "org.gnome.Ptyxis.desktop",
                     "org.gnome.Nautilus.desktop",
                     "firefox.desktop",
                     "steam.desktop",

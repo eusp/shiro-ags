@@ -1,19 +1,18 @@
 import { Gtk } from "ags/gtk4"
 import Hyprland, { Client } from "../../lib/hyprland"
-import Apps from "../../lib/apps"
 import Gio from "gi://Gio"
 import GioUnix from "gi://GioUnix"
 import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
 import pins from "../../lib/pins"
+import { findAppMatch, resolveAppIcon } from "../../lib/icons"
 
 const hyprland = Hyprland.get_default()
-const apps = new Apps()
 
 const DEFAULT_APPS = [
-    { icon: "utilities-terminal-symbolic", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "ptyxis.desktop" },
-    { icon: "folder-symbolic", command: "nautilus", tooltip: "Nautilus", matches: "nautilus", id: "org.gnome.Nautilus.desktop" },
-    { icon: "firefox-symbolic", command: "firefox", tooltip: "Firefox", matches: "firefox", id: "firefox.desktop" },
-    { icon: "steam-symbolic", command: "steam", tooltip: "Steam", matches: "steam", id: "steam.desktop" },
+    { icon: "org.gnome.Ptyxis", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "org.gnome.Ptyxis.desktop" },
+    { icon: "org.gnome.Nautilus", command: "nautilus", tooltip: "Nautilus", matches: "nautilus", id: "org.gnome.Nautilus.desktop" },
+    { icon: "firefox", command: "firefox", tooltip: "Firefox", matches: "firefox", id: "firefox.desktop" },
+    { icon: "steam", command: "steam", tooltip: "Steam", matches: "steam", id: "steam.desktop" },
 ]
 
 function launchDetached(command: string) {
@@ -30,38 +29,7 @@ function launchDetached(command: string) {
 function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     const sections: MenuSection[] = []
     const match = appInfo?.matches || client?.class?.toLowerCase() || ""
-    let desktopApp: GioUnix.DesktopAppInfo | null = null
-
-    const tryGetAppInfo = (id: string) => {
-        if (!id) return null
-        const { DesktopAppInfo } = GioUnix
-        return DesktopAppInfo.new(id) ||
-            DesktopAppInfo.new(id + ".desktop") ||
-            DesktopAppInfo.new("org.mozilla." + id) ||
-            DesktopAppInfo.new("org.gnome." + (id === "nautilus" ? "Nautilus" : id))
-    }
-
-    const astalApp = apps.list.find(a => {
-        const id = (a.id || "").toLowerCase()
-        const wm = (a.wm_class || "").toLowerCase()
-        const name = (a.name || "").toLowerCase()
-        return id.includes(match) || wm.includes(match) || name.includes(match)
-    })
-
-    if (astalApp?.id) {
-        desktopApp = GioUnix.DesktopAppInfo.new(astalApp.id)
-    }
-
-    if (!desktopApp) desktopApp = tryGetAppInfo(match)
-
-    if (!desktopApp) {
-        const allApps = Gio.AppInfo.get_all()
-        desktopApp = allApps.find(a =>
-            (a.get_id() || "").toLowerCase().includes(match) ||
-            (a.get_name() || "").toLowerCase().includes(match) ||
-            (a.get_executable() || "").toLowerCase().includes(match)
-        ) as GioUnix.DesktopAppInfo
-    }
+    const { desktopApp, astalId } = findAppMatch(match)
 
     if (desktopApp) {
         const actions = desktopApp.list_actions ? desktopApp.list_actions() : []
@@ -109,7 +77,7 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
     }
 
     const pinningItems: MenuItem[] = []
-    const appId = desktopApp?.get_id() || astalApp?.id || (appInfo?.id) || ""
+    const appId = desktopApp?.get_id() || astalId || (appInfo?.id) || ""
     const isPinnedMenu = pins.isPinnedMenu(appId)
     const isPinnedSidebar = pins.isPinnedSidebar(appId)
 
@@ -240,7 +208,7 @@ export default function AppList() {
                 btn.add_css_class("shortcut-btn")
                 if (isActive) btn.add_css_class("active")
 
-                btn.set_child(new Gtk.Image({ iconName: (client.class?.toLowerCase() || "") + "-symbolic" }))
+                btn.set_child(new Gtk.Image({ iconName: resolveAppIcon(client.class || "") }))
 
                 btn.connect("clicked", () => {
                     const currentWorkspace = hyprland.focusedWorkspace
