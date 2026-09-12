@@ -52,7 +52,7 @@ cd ~/.config/shiro-ags && npm install
 ### 5. Detalles de Arch
 - **`*.local` (audio-route.sh)**: Arch no resuelve mDNS por defecto. `sudo systemctl enable --now avahi-daemon`
   y en `/etc/nsswitch.conf` agrega `mdns_minimal [NOTFOUND=return]` antes de `resolve` en la línea `hosts:`.
-- **Hostnames**: `scripts/audio-route.sh` busca `nobara-pc` / `nobara-laptop`. Si cambias el nombre de los
+- **Hostnames**: `scripts/audio-route.sh` busca `CachyOS-PC` / `CachyOS-Laptop`. Si cambias el nombre de los
   equipos, edita `PC_HOST`/`LT_HOST` (y las direcciones `.local`) al principio del script.
 - **Brillo**: `sudo usermod -aG video $USER` en el laptop.
 
@@ -156,5 +156,5 @@ sudo dnf install jetbrains-mono-fonts-all # Luego instala manualmente la versió
 - **Brillo (RightMenu)**: el slider usa `brightnessctl` sobre el panel de retroiluminación real (`/sys/class/backlight`), pensado para pantallas de laptop.
     - Debe existir un dispositivo en `/sys/class/backlight/` (`brightnessctl -c backlight -l` lo lista). Los monitores externos por VGA/HDMI normalmente **no** lo exponen — en ese caso el widget se oculta solo.
     - Puede requerir pertenecer al grupo `video`: `sudo usermod -aG video $USER` (cierra sesión y vuelve a entrar).
-- **Enviar audio a otro equipo (SideBar)**: `scripts/audio-route.sh` usa `ssh` sin contraseña (llaves) y `pactl` entre `nobara-pc` y `nobara-laptop`.
+- **Enviar audio a otro equipo (SideBar)**: `scripts/audio-route.sh` usa `ssh` sin contraseña (llaves) y `pactl` entre `CachyOS-PC` y `CachyOS-Laptop`, así que cada equipo necesita sshd activo y la llave del otro en `~/.ssh/authorized_keys`. Si un equipo ya le está enviando audio al otro, el envío en sentido contrario se bloquea con una notificación (los dos túneles harían que el audio diera vueltas entre ambos).
 - **Idioma de teclado (TopBar)**: `hyprctl devices -j` puede listar varios "teclados" (mouse con teclas propias, cada sub-interfaz HID de un teclado mecánico, botones de power, etc.) — `KeyboardLayout.tsx` usa el que Hyprland marca con `"main": true`, no el primero de la lista, para no terminar cambiándole el idioma a un dispositivo que nadie usa para escribir.

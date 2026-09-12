@@ -12,8 +12,8 @@
 set -euo pipefail
 
 # ── config ──────────────────────────────────────────────────────────────────
-PC_HOST="nobara-pc"       ; PC_ADDR="nobara-pc.local"
-LT_HOST="nobara-laptop"   ; LT_ADDR="nobara-laptop.local"
+PC_HOST="CachyOS-PC"      ; PC_ADDR="CachyOS-PC.local"
+LT_HOST="CachyOS-Laptop"  ; LT_ADDR="CachyOS-Laptop.local"
 TUNNEL_SINK="send_to_other"
 # WiFi + a Bluetooth (SBC) sink on the receiver stack two adaptive resamplers on
 # top of a jittery link; 120 ms leaves no room to absorb clock drift, so the
@@ -73,8 +73,19 @@ cmd_local() {
 }
 
 cmd_send() {
-  local ip cur remote_sink
+  local ip cur remote_sink msg
   ip="$(other_ipv4)"; [ -z "$ip" ] && ip="$other_addr"
+
+  # 1. find the receiver's current output
+  remote_sink="$("${SSH[@]}" "emerson@$other_addr" 'pactl get-default-sink')"
+  [ -z "$remote_sink" ] && { echo "audio-route: cannot read remote default sink" >&2; exit 1; }
+  # the receiver is already sending to us: a second tunnel would loop the audio between both
+  if [ "$remote_sink" = "$TUNNEL_SINK" ]; then
+    msg="${other_addr%%.*} ya te está enviando su audio. Detén ese envío primero."
+    notify-send -a "Audio" "No se puede enviar el audio" "$msg" 2>/dev/null || true
+    echo "audio-route: $msg" >&2
+    exit 2
+  fi
 
   # remember where we were, so `local` can restore it
   cur="$(pactl get-default-sink)"
@@ -83,16 +94,12 @@ cmd_send() {
     printf '%s\n' "$cur" > "$STATE_FILE"
   fi
 
-  # 1. make sure the receiver accepts audio over the LAN
+  # 2. make sure the receiver accepts audio over the LAN
   "${SSH[@]}" "emerson@$other_addr" '
     pactl list modules short | grep -q module-native-protocol-tcp ||
       pactl load-module module-native-protocol-tcp listen=0.0.0.0 \
         auth-ip-acl="127.0.0.1/32;192.168.0.0/16;10.0.0.0/8"
   '
-
-  # 2. find the receiver's current output
-  remote_sink="$("${SSH[@]}" "emerson@$other_addr" 'pactl get-default-sink')"
-  [ -z "$remote_sink" ] && { echo "audio-route: cannot read remote default sink" >&2; exit 1; }
 
   # 3. (re)create the tunnel on this machine, aimed at that sink
   unload_tunnel_local
