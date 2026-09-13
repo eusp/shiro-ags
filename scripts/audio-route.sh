@@ -19,7 +19,6 @@ TUNNEL_SINK="send_to_other"
 # top of a jittery link; 120 ms leaves no room to absorb clock drift, so the
 # stream slowly turns "screechy". 400 ms gives the rate controllers slack.
 LATENCY_MSEC="${AUDIO_ROUTE_LATENCY:-400}"
-STATE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/ags-audio-route.prev"
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new)
 
 # ── resolve the "other" machine ─────────────────────────────────────────────
@@ -32,11 +31,6 @@ esac
 
 other_ipv4() {
   getent ahostsv4 "$other_addr" 2>/dev/null | awk 'NR==1{print $1}'
-}
-
-first_hw_sink() {
-  pactl list sinks short | awk '{print $2}' \
-    | grep -E '^(alsa_output|bluez_output)\.' | grep -vx "$TUNNEL_SINK" | head -n1
 }
 
 move_all_inputs() {
@@ -54,22 +48,21 @@ unload_tunnel_local() {
 
 # ── commands ────────────────────────────────────────────────────────────────
 cmd_local() {
-  local prev="" hw=""
-  [ -f "$STATE_FILE" ] && prev="$(cat "$STATE_FILE" 2>/dev/null || true)"
-
-  if [ -n "$prev" ] && [ "$prev" != "$TUNNEL_SINK" ] \
-     && pactl list sinks short | awk '{print $2}' | grep -qx "$prev"; then
-    hw="$prev"
-  else
-    hw="$(first_hw_sink)"
-  fi
-  [ -z "$hw" ] && { echo "audio-route: no local hardware sink found" >&2; exit 1; }
-
-  pactl set-default-sink "$hw"
-  move_all_inputs "$hw"
+  local def="" i
+  # unpin the output instead of pinning a local one: with no configured choice wireplumber
+  # picks by priority, so it keeps switching to bluetooth headphones whenever they connect
+  pw-metadata -n default -d 0 default.configured.audio.sink >/dev/null 2>&1 || true
   unload_tunnel_local
-  rm -f "$STATE_FILE"
-  echo "local:$hw"
+  for i in $(seq 1 20); do
+    def="$(pactl get-default-sink)"
+    [ -n "$def" ] && [ "$def" != "$TUNNEL_SINK" ] && break
+    sleep 0.1
+  done
+  if [ -z "$def" ] || [ "$def" = "$TUNNEL_SINK" ]; then
+    echo "audio-route: no local output sink found" >&2
+    exit 1
+  fi
+  echo "local:$def"
 }
 
 fail() {
@@ -83,7 +76,7 @@ tunnel_ready() {
 }
 
 cmd_send() {
-  local ip cur remote_sink other i
+  local ip remote_sink other i
   ip="$(other_ipv4)"; [ -z "$ip" ] && ip="$other_addr"
   other="${other_addr%%.*}"
 
@@ -92,13 +85,6 @@ cmd_send() {
   [ -z "$remote_sink" ] && fail "No hay conexión por SSH con $other. ¿Está encendida?"
   # the receiver is already sending to us: a second tunnel would loop the audio between both
   [ "$remote_sink" = "$TUNNEL_SINK" ] && fail "$other ya te está enviando su audio. Detén ese envío primero." 2
-
-  # remember where we were, so `local` can restore it
-  cur="$(pactl get-default-sink)"
-  if [ "$cur" != "$TUNNEL_SINK" ]; then
-    mkdir -p "$(dirname "$STATE_FILE")"
-    printf '%s\n' "$cur" > "$STATE_FILE"
-  fi
 
   # 2. make sure the receiver accepts audio over the LAN
   "${SSH[@]}" "emerson@$other_addr" '
@@ -120,7 +106,6 @@ cmd_send() {
   for i in $(seq 1 20); do tunnel_ready && break; sleep 0.25; done
   if ! tunnel_ready; then
     unload_tunnel_local
-    rm -f "$STATE_FILE"
     fail "No se pudo conectar con el audio de $other (puerto 4713). Revisa su firewall."
   fi
   pactl set-default-sink "$TUNNEL_SINK"
