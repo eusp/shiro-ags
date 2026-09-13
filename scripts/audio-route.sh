@@ -72,20 +72,26 @@ cmd_local() {
   echo "local:$hw"
 }
 
+fail() {
+  notify-send -a "Audio" "No se pudo enviar el audio" "$1" 2>/dev/null || true
+  echo "audio-route: $1" >&2
+  exit "${2:-1}"
+}
+
+tunnel_ready() {
+  pactl list sinks short | awk '{print $2}' | grep -qx "$TUNNEL_SINK"
+}
+
 cmd_send() {
-  local ip cur remote_sink msg
+  local ip cur remote_sink other i
   ip="$(other_ipv4)"; [ -z "$ip" ] && ip="$other_addr"
+  other="${other_addr%%.*}"
 
   # 1. find the receiver's current output
-  remote_sink="$("${SSH[@]}" "emerson@$other_addr" 'pactl get-default-sink')"
-  [ -z "$remote_sink" ] && { echo "audio-route: cannot read remote default sink" >&2; exit 1; }
+  remote_sink="$("${SSH[@]}" "emerson@$other_addr" 'pactl get-default-sink' 2>/dev/null)" || remote_sink=""
+  [ -z "$remote_sink" ] && fail "No hay conexión por SSH con $other. ¿Está encendida?"
   # the receiver is already sending to us: a second tunnel would loop the audio between both
-  if [ "$remote_sink" = "$TUNNEL_SINK" ]; then
-    msg="${other_addr%%.*} ya te está enviando su audio. Detén ese envío primero."
-    notify-send -a "Audio" "No se puede enviar el audio" "$msg" 2>/dev/null || true
-    echo "audio-route: $msg" >&2
-    exit 2
-  fi
+  [ "$remote_sink" = "$TUNNEL_SINK" ] && fail "$other ya te está enviando su audio. Detén ese envío primero." 2
 
   # remember where we were, so `local` can restore it
   cur="$(pactl get-default-sink)"
@@ -99,7 +105,7 @@ cmd_send() {
     pactl list modules short | grep -q module-native-protocol-tcp ||
       pactl load-module module-native-protocol-tcp listen=0.0.0.0 \
         auth-ip-acl="127.0.0.1/32;192.168.0.0/16;10.0.0.0/8"
-  '
+  ' >/dev/null 2>&1 || fail "No se pudo preparar la recepción de audio en $other."
 
   # 3. (re)create the tunnel on this machine, aimed at that sink
   unload_tunnel_local
@@ -107,10 +113,16 @@ cmd_send() {
     server="tcp:$ip" \
     sink="$remote_sink" \
     sink_name="$TUNNEL_SINK" \
-    sink_properties=device.description="Enviar a ${other_addr%%.*}" \
+    sink_properties=device.description="Enviar a $other" \
     latency_msec="$LATENCY_MSEC" >/dev/null
 
-  sleep 0.5
+  # pipewire only creates the tunnel sink once it has connected to the receiver
+  for i in $(seq 1 20); do tunnel_ready && break; sleep 0.25; done
+  if ! tunnel_ready; then
+    unload_tunnel_local
+    rm -f "$STATE_FILE"
+    fail "No se pudo conectar con el audio de $other (puerto 4713). Revisa su firewall."
+  fi
   pactl set-default-sink "$TUNNEL_SINK"
   move_all_inputs "$TUNNEL_SINK"
 
