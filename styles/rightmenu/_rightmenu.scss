@@ -1,0 +1,16 @@
+@use "../abstracts" as *;
+
+// Menú derecho: ventana y contenedor
+window.RightMenu {
+  background: transparent;
+
+  .rightmenu-container {
+    background-color: theme-alpha(base, 0.98);
+    border-left: 2px solid var(--primary-muted);
+    padding: 12px;
+    min-width: 320px;
+    box-shadow:
+      inset 1px 0 0 theme-alpha(accent0, 0.05),
+      0 0 24px theme-alpha(primary, 0.08);
+  }
+}

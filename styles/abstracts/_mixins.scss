@@ -1,0 +1,29 @@
+@use "functions" as *;
+@use "tokens" as *;
+
+// Quita el estilo de Adwaita a un botón. Va primero en el bloque:
+// `all: unset` borra lo que se haya declarado antes.
+// Sin transición: @include button-reset(null).
+@mixin button-reset($transition: $transition) {
+  all: unset;
+  transition: $transition;
+}
+
+@mixin text($size, $weight: null, $family: $font-ui) {
+  font-family: $family;
+  font-size: $size;
+  font-weight: $weight;
+}
+
+// Colores de acciones destructivas (borrar, descartar).
+@mixin danger-colors($property: background) {
+  color: var(--danger);
+  #{$property}: theme-alpha(danger, 0.15);
+}
+
+// Línea divisoria de 1px entre secciones de un popover.
+@mixin hairline($margin: 4px 0) {
+  background-color: theme-alpha(primary-muted, 0.25);
+  min-height: 1px;
+  margin: $margin;
+}

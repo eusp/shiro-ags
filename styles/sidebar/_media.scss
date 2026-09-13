@@ -1,0 +1,58 @@
+@use "../abstracts" as *;
+
+// Visualizador y controles de reproducción de la barra lateral
+window.SideBar {
+  .media-visualizer {
+    padding: 4px;
+    margin-left: 3px;
+    min-width: 32px;
+
+    .vis-noise-line .vis-noise-seg {
+      background: theme-alpha(primary-alt, 0.55);
+      min-height: 1px;
+      border-radius: 2px;
+    }
+  }
+
+  .media-placeholder-btn {
+    @include button-reset;
+    color: theme-alpha(subtext0, 0.5);
+    padding: 6px 2px;
+    border-radius: $radius-sm;
+
+    &:hover {
+      color: var(--primary-alt);
+      text-shadow: 0 0 8px theme-alpha(primary-alt, 0.4);
+    }
+
+    image {
+      font-size: 12px;
+    }
+  }
+
+  .media-controls {
+    .media-title {
+      font-family: $font-mono;
+      font-size: 1px;
+      color: theme-alpha(accent0, 0.75);
+      transform: rotate(90deg) scale(12);
+      transform-origin: center center;
+      margin-right: 5px;
+    }
+
+    button {
+      @include button-reset;
+      color: theme-alpha(subtext0, 0.6);
+      padding: 2px;
+
+      &:hover {
+        color: var(--primary-alt);
+        text-shadow: 0 0 8px theme-alpha(primary-alt, 0.4);
+      }
+
+      image {
+        font-size: 12px;
+      }
+    }
+  }
+}

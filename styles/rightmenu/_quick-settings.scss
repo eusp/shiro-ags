@@ -1,0 +1,80 @@
+@use "../abstracts" as *;
+
+// Ajustes rápidos: filas con ícono, detalle, slider y flecha
+window.RightMenu {
+  .quick-settings {
+    padding: 0px;
+  }
+
+  .quick-settings-list {
+    margin-top: -20px;
+  }
+
+  .quick-settings-item {
+    @include button-reset;
+    padding: 8px 12px;
+    border-radius: $radius-lg;
+    background: transparent;
+
+    &:hover {
+      background: theme-alpha(overlay0, 0.8);
+      box-shadow: inset 0 0 0 1px theme-alpha(primary, 0.1);
+    }
+
+    .toggle-icon {
+      font-size: 18px;
+      color: var(--accent0);
+      min-width: 24px;
+    }
+
+    .toggle-detail {
+      font-size: $text-md;
+      color: theme-alpha(subtext0, 0.9);
+    }
+
+    .toggle-slider {
+      margin: -8px -12px;
+
+      trough {
+        min-height: 4px;
+        background: theme-alpha(surface2, 0.8);
+        border-radius: 100px;
+      }
+
+      highlight {
+        background: theme-alpha(primary, 0.7);
+        border-radius: 100px;
+      }
+
+      slider {
+        min-height: 6px;
+        min-width: 6px;
+        margin: -2px;
+        background: var(--primary-alt);
+        border-radius: 100px;
+        box-shadow: 0 0 6px theme-alpha(primary-alt, 0.35);
+      }
+    }
+
+    .mute-button,
+    .arrow-button {
+      @include button-reset;
+      padding: 0;
+      background: transparent;
+      border: none;
+
+      &:hover {
+        color: var(--accent0);
+      }
+    }
+
+    .mute-button {
+      min-width: 24px;
+    }
+
+    .toggle-arrow {
+      font-size: 10px;
+      color: theme-alpha(subtext0, 0.45);
+    }
+  }
+}

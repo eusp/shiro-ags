@@ -1,0 +1,36 @@
+@use "../abstracts" as *;
+
+// Puntos de workspaces en la barra. El preview que aparece al pasar el mouse
+// está en workspace-preview.scss.
+window.TopBar .workspaces {
+  // Envoltorio invisible que ocupa toda la altura de la topbar (el
+  // círculo visible va adentro, en .ws-dot) — así el popover de preview,
+  // que se ancla a este botón, sale pegado al borde de la barra.
+  .ws-dot-btn {
+    all: unset;
+  }
+
+  .ws-dot {
+    @include button-reset;
+    border-radius: 50%;
+    background: theme-alpha(surface1, 0.6);
+    border: 1px solid var(--primary-muted);
+
+    .dot {
+      border-radius: 50%;
+    }
+
+    &:hover {
+      background: theme-alpha(primary-muted, 0.35);
+      border-color: theme-alpha(primary, 0.5);
+    }
+
+    &.active {
+      background: var(--primary);
+      border-color: var(--primary-alt);
+      box-shadow:
+        0 0 8px theme-alpha(primary, 0.35),
+        0 0 16px theme-alpha(primary-alt, 0.15);
+    }
+  }
+}

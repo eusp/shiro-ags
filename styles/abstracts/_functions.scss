@@ -1,0 +1,11 @@
+@use "sass:string";
+
+// Color del tema con transparencia, que se sigue actualizando al cambiar de
+// tema: theme-alpha(primary, 0.8) → alpha(var(--primary), 0.8).
+// Sin transparencia no hace falta: se escribe var(--primary) directamente.
+//
+// No se puede escribir alpha(var(--primary), 0.8) tal cual en SCSS: Sass lo
+// confunde con su propia función alpha() y da error. GTK sí lo entiende.
+@function theme-alpha($name, $alpha) {
+  @return string.unquote("alpha(var(--#{$name}), #{$alpha})");
+}

@@ -1,0 +1,22 @@
+@use "../abstracts" as *;
+
+// Estilo común de todos los botones de la barra
+window.TopBar {
+  button,
+  menubutton > button {
+    @include button-reset;
+    color: theme-alpha(subtext0, 0.75);
+    padding: 0 5px;
+    border-radius: $radius-sm;
+
+    &:hover {
+      color: var(--accent0);
+      background: theme-alpha(overlay0, 0.8);
+      box-shadow: inset 0 0 0 1px theme-alpha(primary, 0.12);
+    }
+
+    image {
+      color: inherit;
+    }
+  }
+}

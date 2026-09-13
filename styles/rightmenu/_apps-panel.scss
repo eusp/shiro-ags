@@ -1,0 +1,107 @@
+@use "../abstracts" as *;
+
+// Panel de apps: ancladas, búsqueda y grilla (AppsPanel.tsx)
+window.RightMenu {
+  .apps-panel {
+    border-top: 1px solid theme-alpha(primary-muted, 0.5);
+    border-bottom: 1px solid theme-alpha(primary-muted, 0.5);
+    border-radius: $radius-xl;
+    padding: 8px;
+  }
+
+  .pinned-section {
+    min-height: 225px;
+  }
+
+  .pinned-grid {
+    margin-top: -25px;
+    padding: 0;
+  }
+
+  .app-search {
+    background: transparent;
+    border-radius: $radius-lg;
+    color: var(--accent0);
+    border-bottom: 1px solid theme-alpha(primary-muted, 0.5);
+
+    &:focus-within {
+      background: theme-alpha(overlay0, 0.8);
+      outline: none;
+      outline-width: 0;
+      outline-color: transparent;
+    }
+  }
+
+  .search-box {
+    padding: 0;
+  }
+
+  .menu-button {
+    @include button-reset($transition-fast);
+    border-radius: $radius-md;
+    border-bottom: 1px solid theme-alpha(primary-muted, 0.5);
+    padding-left: 10px;
+    padding-right: 10px;
+    color: var(--accent0);
+
+    &:hover {
+      background: theme-alpha(overlay0, 0.8);
+    }
+
+    image {
+      font-size: 32px;
+    }
+  }
+
+  .apps-grid {
+    padding: 0;
+  }
+
+  .app-tile {
+    @include button-reset(null);
+    padding: 4px;
+    border-radius: $radius-md;
+
+    image {
+      color: var(--accent0);
+      font-size: 40px;
+    }
+
+    .app-tile-name {
+      font-size: $text-sm;
+      color: theme-alpha(subtext0, 0.9);
+    }
+
+    &:hover {
+      background: theme-alpha(overlay0, 0.8);
+    }
+
+    &.highlighted {
+      background: theme-alpha(primary, 0.15);
+      box-shadow:
+        inset 0 0 0 1px theme-alpha(primary-alt, 0.2),
+        0 0 12px theme-alpha(primary, 0.08);
+    }
+  }
+
+  .no-results-label {
+    min-height: 225px;
+    color: theme-alpha(subtext0, 0.65);
+    font-size: $text-xs;
+  }
+
+  // Quita el fondo y el borde que Adwaita le pone a cada celda del FlowBox
+  flowboxchild {
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+
+    &:hover {
+      background-color: transparent;
+      border: none;
+      box-shadow: none;
+    }
+  }
+}

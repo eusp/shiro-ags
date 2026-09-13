@@ -1,0 +1,26 @@
+@use "../abstracts" as *;
+
+// Preview de un workspace al pasar el mouse sobre su punto en la barra
+#{$popover} {
+  // Columna de íconos del preview
+  .ws-preview {
+    padding: 0px;
+  }
+
+  // Cajita por ícono: mismo color/transparencia de reposo que
+  // .shortcut-btn en la sidebar, pero con el borde izquierdo y las
+  // esquinas redondeadas siempre visibles — acá no hay hover real que las
+  // active, así que van fijas desde el principio.
+  .ws-preview-item {
+    padding: 6px 12px;
+    margin: 2px 0;
+    border-radius: $radius-md;
+    border-left: 2px solid theme-alpha(primary, 0.65);
+    border-bottom: 1px solid theme-alpha(primary, 0.65);
+    background: var(--surface1);
+
+    image {
+      color: var(--text);
+    }
+  }
+}

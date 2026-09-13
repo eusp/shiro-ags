@@ -91,9 +91,11 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
     - `SideBar/`, `RightMenu/`: Widgets específicos de cada sección.
 - `scripts/`: Scripts de shell usados por los widgets (`audio-route.sh`).
 - `state/`: estado local (`notes.json`, `pinned.json`, `bt-devices.json`, `notifications.json`: notas, apps ancladas, dispositivos Bluetooth recordados e historial de notificaciones). No está en git; el shell crea la carpeta y los archivos solo, y mueve ahí los JSON que versiones anteriores dejaban sueltos en la raíz.
-- `styles/`: Archivos SCSS organizados por componentes.
+- `styles/`: SCSS por componente, con la misma estructura que `widget/`. El orden de carga, que decide la cascada, está en `style.scss`.
     - `colors.scss`: Variables CSS del tema activo (auto-generado por shiro-theme, no editar).
-    - `popovers.scss`: Sistema global de estilos para todos los popovers/menús.
-    - `topbar.scss`: Estilos de la barra superior y popover de fecha/hora.
+    - `abstracts/`: tokens (`$radius-md`, `$font-ui`…) y mixins. No generan CSS; cada archivo los importa con `@use "../abstracts" as *`.
+    - `topbar/`, `sidebar/`, `rightmenu/`: un archivo por widget, incluido el contenido de los popovers que abre.
+    - `shared/`: base común de los popovers, notificaciones emergentes y aviso de batería.
+    - Los colores siempre van como `var(--primary)`, nunca como variable de Sass: así el selector de temas los cambia en caliente.
 - `app.ts`: Definición de las ventanas, configuración principal e inyección inicial de variables CSS del tema.
 - `widget/RightMenu/ThemeSelector.tsx`: Selector de temas con hot-reload — carga temas desde `~/.config/shiro-theme/themes/`, previsualiza el wallpaper y aplica colores + fondo en caliente.

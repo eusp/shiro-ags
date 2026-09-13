@@ -1,0 +1,29 @@
+@use "../abstracts" as *;
+
+// Menús de las apps de la bandeja del sistema (DBusMenu)
+#{$popover} {
+  modelbutton {
+    @include text($text-sm, 500);
+    padding: 0 14px;
+    border-radius: $radius-sm;
+    color: theme-alpha(subtext0, 0.9);
+    border: 1px solid transparent;
+    transition: $transition;
+
+    &:hover {
+      background-color: theme-alpha(overlay0, 0.9);
+      color: var(--accent0);
+      border: 1px solid theme-alpha(primary, 0.12);
+    }
+  }
+
+  separator {
+    @include hairline;
+  }
+}
+
+.systray-popover contents {
+  margin-top: -10px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}

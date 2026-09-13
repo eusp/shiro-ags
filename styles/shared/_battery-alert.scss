@@ -1,0 +1,66 @@
+@use "../abstracts" as *;
+
+// Aviso de batería baja (overlay de pantalla completa)
+window.BatteryAlertOverlay {
+  // Fixed red (220, 38, 38) — not a --danger theme variable, since some
+  // themes (frozen-rukia) define "danger" as a muted rose/mauve rather
+  // than an actual red, and a battery alert should look the same
+  // regardless of which theme is active.
+
+  // The dim scrim lives directly on the window's own CSS node — a nested
+  // Box here never got allocated the full monitor size (its background
+  // stayed a small top-left patch regardless of expand/align/size-request),
+  // while the window's own background reliably paints the whole
+  // layer-shell surface.
+  background: rgba(220, 38, 38, 0.25);
+
+  .battery-alert-card {
+    background-color: theme-alpha(base, 0.98);
+    border: 1px solid rgba(220, 38, 38, 0.5);
+    border-radius: 16px;
+    padding: 32px 44px;
+    min-width: 300px;
+    box-shadow:
+      0 10px 40px rgba(0, 0, 0, 1),
+      0 0 30px rgba(0, 0, 0, 1);
+
+    &.critical {
+      border-color: rgba(220, 38, 38, 0.75);
+      box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(0, 0, 0, 1);
+    }
+  }
+
+  .battery-alert-icon {
+    font-size: 48px;
+    color: rgb(220, 38, 38);
+  }
+
+  .battery-alert-title {
+    @include text(20px, 700);
+    color: var(--accent0);
+  }
+
+  .battery-alert-subtitle {
+    @include text($text-md);
+    color: theme-alpha(subtext0, 0.9);
+  }
+
+  .battery-alert-close {
+    @include button-reset;
+    @include text($text-sm, 600);
+    margin-top: 8px;
+    padding: 6px 22px;
+    border-radius: $radius-md;
+    background: theme-alpha(primary, 0.12);
+    border: 1px solid theme-alpha(primary, 0.4);
+    color: var(--primary);
+
+    &:hover {
+      background: theme-alpha(primary, 0.25);
+      border-color: var(--primary);
+      color: var(--accent0);
+    }
+  }
+}

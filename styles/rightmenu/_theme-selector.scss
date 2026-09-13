@@ -1,0 +1,155 @@
+@use "../abstracts" as *;
+
+// Selector de temas (ThemeSelector.tsx). Los colores del tema los inyecta el
+// propio widget en caliente; aquí solo va la forma de las tarjetas.
+window.RightMenu {
+  // Panel contenedor completo (botón + cards)
+  .theme-selector {
+    border-top: 1px solid theme-alpha(primary-muted, 0.5);
+    border-bottom: 1px solid theme-alpha(primary-muted, 0.5);
+    border-radius: $radius-lg;
+  }
+
+  .theme-selector-toggle {
+    @include button-reset;
+    padding: 5px 20px 5px 20px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.8);
+
+    .theme-toggle-label {
+      @include text($text-sm, 500);
+    }
+
+    .theme-toggle-current {
+      @include text($text-xs, $family: $font-mono);
+      color: var(--primary);
+    }
+
+    .theme-toggle-arrow {
+      font-size: $text-xs;
+      color: theme-alpha(subtext0, 0.4);
+    }
+
+    &:hover {
+      color: var(--accent0);
+      background: theme-alpha(overlay0, 0.7);
+    }
+
+    // Estado activo/abierto: highlight del botón completo
+    &.expanded {
+      color: var(--accent0);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-bottom: 1px solid theme-alpha(primary-muted, 0.2);
+
+      .theme-toggle-label {
+        color: var(--accent0);
+      }
+
+      .theme-toggle-arrow {
+        color: var(--primary);
+      }
+    }
+  }
+
+  .wallpaper-mode-icons {
+    margin: 0;
+  }
+
+  .wallpaper-mode-icon-btn {
+    @include button-reset($transition-fast);
+    padding: 3px;
+    border-radius: $radius-xs;
+    color: theme-alpha(accent0, 0.7);
+    background: theme-alpha(base, 0.55);
+    border: 1px solid theme-alpha(primary-muted, 0.4);
+
+    &:hover {
+      color: var(--accent0);
+      border-color: theme-alpha(primary, 0.5);
+    }
+
+    &.active {
+      color: var(--primary);
+      background: theme-alpha(primary, 0.25);
+      border-color: var(--primary);
+    }
+  }
+
+  .theme-cards-scroll {
+    scrollbar {
+      background: transparent;
+
+      slider {
+        background: theme-alpha(primary-muted, 0.35);
+        border-radius: 3px;
+        min-width: 3px;
+
+        &:hover {
+          background: theme-alpha(primary, 0.5);
+        }
+      }
+    }
+  }
+
+  .theme-cards-container {
+    padding: 0 4px;
+  }
+
+  .theme-card {
+    @include button-reset;
+    border-radius: $radius-md;
+    border: 1px solid theme-alpha(primary-muted, 0.5);
+    background: theme-alpha(surface0, 0.5);
+    margin-bottom: 5px;
+
+    &.active-theme {
+      border-color: var(--primary);
+      background: theme-alpha(primary, 0.06);
+      box-shadow:
+        0 0 14px theme-alpha(primary, 0.1),
+        inset 0 0 0 1px theme-alpha(primary-alt, 0.08);
+    }
+  }
+
+  .theme-card-wallpaper {
+    min-height: 150px;
+    border-radius: $radius-sm;
+  }
+
+  .theme-card-no-wallpaper {
+    min-height: 150px;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .theme-card-info {
+    padding: 16px 8px 5px;
+    border-radius: 0 0 6px 6px;
+  }
+
+  .theme-card-name {
+    @include text($text-sm, 600);
+    color: var(--accent0);
+    // Contorno negro fijo para que el nombre se lea sobre cualquier fondo
+    text-shadow:
+      1px 0 #000,
+      -1px 0 #000,
+      0 1px #000,
+      0 -1px #000;
+  }
+
+  .theme-card-active-badge {
+    @include text(10px, 600);
+    color: var(--primary);
+    padding: 1px 6px;
+    border-radius: $radius-xs;
+    background: theme-alpha(base, 0.7);
+    border: 1px solid theme-alpha(primary, 0.4);
+  }
+
+  .applying-indicator {
+    @include text($text-xs);
+    color: theme-alpha(primary, 0.8);
+    padding: 4px 10px;
+  }
+}

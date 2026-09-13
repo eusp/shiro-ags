@@ -1,0 +1,31 @@
+@use "../abstracts" as *;
+
+// Botón del reloj en la barra (Clock.tsx). El popover que abre está en
+// clock-popover.scss.
+window.TopBar {
+  .clock {
+    @include text($text-md, 600, $font-mono);
+    color: var(--accent0);
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 8px theme-alpha(primary-alt, 0.15);
+  }
+
+  .clock-button-content {
+    padding: 0px 5px;
+  }
+
+  // Contador de notificaciones
+  .clock-notif-badge {
+    @include text(9px, 700, $font-mono);
+    min-width: 16px;
+    min-height: 16px;
+    padding: 0 4px;
+    border-radius: $radius-sm;
+    background-color: var(--surface1);
+    color: var(--primary-alt);
+    border: 1px solid theme-alpha(primary, 0.55);
+    box-shadow:
+      0 0 6px theme-alpha(primary, 0.25),
+      inset 0 0 0 1px theme-alpha(primary-alt, 0.08);
+  }
+}

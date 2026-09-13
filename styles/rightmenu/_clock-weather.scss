@@ -1,0 +1,27 @@
+@use "../abstracts" as *;
+
+// Reloj y clima del menú derecho
+window.RightMenu .clock-weather-container {
+  padding: 20px;
+
+  .clock-time {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--accent0);
+    font-family: "JetBrains Mono", monospace;
+    text-shadow: 0 0 10px theme-alpha(primary-alt, 0.15);
+  }
+
+  .clock-date {
+    margin-top: -25px;
+    font-size: 14px;
+    color: theme-alpha(subtext0, 0.8);
+  }
+
+  .clock-weather {
+    margin-top: -25px;
+    margin-left: 15px;
+    font-size: $text-md;
+    color: var(--primary);
+  }
+}

@@ -1,7 +1,48 @@
-@use 'styles/colors' as *;
-@use 'styles/global' as *;
-@use 'styles/rightmenu' as *;
-@use 'styles/topbar' as *;
-@use 'styles/sidebar' as *;
-@use 'styles/popovers' as *;
-@use 'styles/notes' as *;
+// Punto de entrada de los estilos (lo importa app.ts y AGS lo compila al
+// arrancar).
+//
+// El orden de estos @use es el orden de la cascada: si dos reglas empatan en
+// especificidad, gana la que se carga después. Un archivo nuevo va en la
+// sección de su componente.
+//
+// styles/colors.scss lo genera shiro-theme (builders/ags.js): no lo edites
+// ni lo muevas.
+
+@use "styles/colors";
+@use "styles/global";
+
+// Menú derecho
+@use "styles/rightmenu/rightmenu";
+@use "styles/rightmenu/clock-weather";
+@use "styles/rightmenu/quick-settings";
+@use "styles/rightmenu/apps-panel";
+@use "styles/rightmenu/power-actions";
+@use "styles/rightmenu/theme-selector";
+
+// Barra superior
+@use "styles/topbar/topbar";
+@use "styles/topbar/workspaces";
+@use "styles/topbar/clock";
+@use "styles/topbar/buttons";
+@use "styles/topbar/keyboard-layout";
+
+// Barra lateral
+@use "styles/sidebar/sidebar";
+@use "styles/sidebar/shortcuts";
+@use "styles/sidebar/media";
+@use "styles/sidebar/audio-route";
+
+// Popovers: primero la base común, después el contenido de cada uno
+@use "styles/shared/popover";
+@use "styles/topbar/clock-popover";
+@use "styles/topbar/workspace-preview";
+@use "styles/shared/popover-items";
+@use "styles/topbar/bluetooth";
+@use "styles/topbar/clipboard";
+@use "styles/topbar/volume";
+@use "styles/topbar/systray";
+
+// Ventanas sueltas
+@use "styles/shared/notification-popup";
+@use "styles/shared/battery-alert";
+@use "styles/notes";

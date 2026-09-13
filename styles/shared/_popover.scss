@@ -1,0 +1,36 @@
+@use "../abstracts" as *;
+
+// Base de todos los popovers: fondo, borde y la forma que toman cuando salen
+// pegados a un borde de la pantalla.
+#{$popover} {
+  background-color: transparent;
+
+  arrow {
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  contents {
+    background-color: theme-alpha(base, 0.98);
+    border: 1px solid theme-alpha(primary, 0.25);
+    border-radius: $radius-lg;
+    box-shadow:
+      0 0 24px theme-alpha(primary, 0.08),
+      inset 0 1px 0 theme-alpha(accent0, 0.04);
+  }
+
+  &.edge-top contents {
+    border-top-width: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    margin-top: 1px;
+  }
+
+  &.edge-left contents {
+    border-left-width: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin-left: 3px;
+    margin-top: 27px;
+  }
+}

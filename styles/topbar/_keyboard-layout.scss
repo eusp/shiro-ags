@@ -1,0 +1,7 @@
+@use "../abstracts" as *;
+
+// Indicador de distribución de teclado
+window.TopBar .kb-layout-label {
+  @include text($text-xs, 700, $font-mono);
+  letter-spacing: 0.5px;
+}

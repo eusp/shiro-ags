@@ -1,0 +1,26 @@
+// Valores fijos del shell: no cambian con el tema.
+//
+// Los colores NO van aquí. Se escriben como var(--primary), etc., porque
+// shiro-theme los genera en colors.scss y ThemeSelector los reemplaza en
+// caliente; una variable de Sass ($x) quedaría fija al compilar.
+
+$font-ui: "Inter", sans-serif;
+$font-mono: "JetBrainsMono Nerd Font", monospace;
+
+$text-xs: 11px;
+$text-sm: 12px;
+$text-md: 13px;
+$text-lg: 14px;
+
+$radius-xs: 4px;
+$radius-sm: 6px;
+$radius-md: 8px;
+$radius-lg: 10px;
+$radius-xl: 12px;
+
+$transition: all 0.2s ease;
+$transition-fast: all 0.15s ease;
+
+// Raíz de los popovers del shell. Los archivos de popovers anidan sus
+// reglas dentro de #{$popover}.
+$popover: "popover.shared-popover, popover.clock-popover";

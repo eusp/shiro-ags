@@ -1,0 +1,25 @@
+@use "../abstracts" as *;
+
+// Barra superior: ventana y zonas
+window.TopBar {
+  background: transparent;
+
+  .bar-content {
+    background-color: theme-alpha(base, 0.98);
+    min-height: 30px;
+    padding: 0px 16px;
+    border-bottom: 2px solid var(--primary-muted);
+    box-shadow:
+      inset 0 -1px 0 theme-alpha(accent0, 0.04),
+      0 0 20px theme-alpha(primary, 0.08);
+
+    .bar-left {
+      min-width: 300px;
+    }
+  }
+
+  // Íconos de la zona derecha (bandeja del sistema y estado)
+  .bar-right image {
+    font-size: 14px;
+  }
+}

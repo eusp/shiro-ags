@@ -1,0 +1,13 @@
+@use "../abstracts" as *;
+
+// Popover del portapapeles (Clipboard.tsx)
+#{$popover} {
+  .clipboard-list {
+    background: transparent;
+  }
+
+  .clip-item-label {
+    @include text($text-sm);
+    color: var(--text);
+  }
+}

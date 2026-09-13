@@ -1,25 +1,28 @@
+@use "abstracts" as *;
+
+// Ventana de notas (Notes.tsx)
 window.Notes {
   background: transparent;
 
   .notes-container {
-    background-color: rgba(var(--surface0-rgb), 0.55);
-    border: 1px solid rgba(var(--primary-rgb), 0.25);
-    border-radius: 10px;
+    background-color: theme-alpha(surface0, 0.55);
+    border: 1px solid theme-alpha(primary, 0.25);
+    border-radius: $radius-lg;
     box-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
   }
 
   .notes-handle {
     min-height: 20px;
     padding: 4px 8px;
-    background-color: rgba(var(--primary-rgb), 0.16);
+    background-color: theme-alpha(primary, 0.16);
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
-    border-bottom: 1px solid rgba(var(--primary-rgb), 0.2);
+    border-bottom: 1px solid theme-alpha(primary, 0.2);
   }
 
   .notes-title {
-    color: rgba(var(--text-rgb), 0.8);
-    font-size: 11px;
+    color: theme-alpha(text, 0.8);
+    font-size: $text-xs;
     font-weight: 600;
   }
 
@@ -30,7 +33,7 @@ window.Notes {
   .notes-textview {
     background: transparent;
     color: var(--text);
-    font-size: 13px;
+    font-size: $text-md;
 
     text {
       background: transparent;
@@ -45,7 +48,7 @@ window.Notes {
   .notes-resize-grip {
     min-width: 10px;
     min-height: 10px;
-    background-color: rgba(var(--subtext0-rgb), 0.4);
+    background-color: theme-alpha(subtext0, 0.4);
     border-radius: 2px;
   }
 }

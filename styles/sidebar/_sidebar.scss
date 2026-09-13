@@ -1,0 +1,23 @@
+@use "../abstracts" as *;
+
+// Barra lateral: ventana, contenedor y separadores
+window.SideBar {
+  background: transparent;
+
+  .sidebar-container {
+    background-color: theme-alpha(base, 0.98);
+    padding: 12px 0px;
+    min-width: 38px;
+    border-right: 2px solid var(--primary-muted);
+    box-shadow:
+      inset -1px 0 0 theme-alpha(accent0, 0.05),
+      0 0 20px theme-alpha(primary, 0.08);
+  }
+
+  .sidebar-separator {
+    min-height: 1px;
+    margin: 4px 6px;
+    background: theme-alpha(primary-muted, 0.3);
+    border-radius: 1px;
+  }
+}

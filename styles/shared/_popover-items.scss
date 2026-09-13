@@ -1,0 +1,107 @@
+@use "../abstracts" as *;
+
+// Piezas comunes dentro de los popovers: títulos, filas, botones, textos,
+// separadores y switches.
+#{$popover} {
+  .popover-section-title {
+    @include text($text-sm, 700);
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  // Fila clicable
+  .popover-item {
+    @include button-reset;
+    padding: 8px 14px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.9);
+    border: 1px solid transparent;
+
+    image {
+      font-size: $text-md;
+      color: var(--primary);
+    }
+
+    label {
+      @include text($text-sm, 500);
+    }
+
+    &:hover {
+      background-color: theme-alpha(overlay0, 0.9);
+      color: var(--accent0);
+      border: 1px solid theme-alpha(primary, 0.12);
+    }
+
+    &.dangerous:hover {
+      @include danger-colors(background-color);
+    }
+  }
+
+  // Botón chico de solo ícono (actualizar, olvidar, etc.) — sin esto el
+  // hover queda pegado al borde del ícono, casi sin margen para hacer clic.
+  .popover-icon-btn {
+    @include button-reset;
+    padding: 6px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.9);
+
+    image {
+      font-size: $text-md;
+      color: var(--primary);
+    }
+
+    &:hover {
+      background-color: theme-alpha(overlay0, 0.9);
+      color: var(--accent0);
+    }
+
+    &.dangerous:hover {
+      @include danger-colors(background-color);
+    }
+  }
+
+  // Como .popover-item pero sin :hover — para filas contenedoras que no
+  // son clicables en sí (el clic vive en un switch/botón adentro); si
+  // llevaran el mismo hover que .popover-item, competiría visualmente con
+  // el hover propio de ese control interno.
+  .popover-row {
+    padding: 8px 14px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.9);
+
+    image {
+      font-size: $text-md;
+      color: var(--primary);
+    }
+
+    label {
+      @include text($text-sm, 500);
+    }
+  }
+
+  .popover-label {
+    @include text($text-sm, 500);
+    color: var(--text);
+  }
+
+  .dim {
+    @include text($text-sm);
+    color: theme-alpha(subtext0, 0.7);
+  }
+
+  .popover-separator {
+    @include hairline;
+  }
+
+  switch.compact-switch {
+    min-width: 30px;
+    min-height: 16px;
+    padding: 0;
+
+    slider {
+      min-width: 12px;
+      min-height: 12px;
+    }
+  }
+}

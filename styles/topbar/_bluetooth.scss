@@ -1,0 +1,26 @@
+@use "../abstracts" as *;
+
+// Popovers de Bluetooth y Wi-Fi (Bluetooth.tsx, Network.tsx)
+#{$popover} {
+  .bt-status-error {
+    @include text($text-xs, 500);
+    color: var(--danger);
+    padding: 2px 14px 4px;
+  }
+
+  .bt-scan-item {
+    // A diferencia de .popover-item normal, esta fila ya trae un botón
+    // de acento propio (Conectar), así que su hover queda más sutil para
+    // no competir visualmente con él. Empata en especificidad con
+    // .popover-item:hover, así que este archivo tiene que cargarse después
+    // de popover-items.scss.
+    &:hover {
+      color: theme-alpha(subtext0, 0.9);
+    }
+  }
+
+  .bt-scan-connect {
+    padding: 4px 10px;
+    font-size: $text-xs;
+  }
+}
