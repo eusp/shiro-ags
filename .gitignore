@@ -14,6 +14,7 @@ dist/
 notes.json
 pinned.json
 bt-devices.json
+notifications.json
 
 # Basura de programas lanzados con este directorio como cwd
 vkd3d-proton.cache*

@@ -50,6 +50,17 @@ const REASON_CLOSE_CALL = 3
 
 const DEFAULT_TIMEOUT_MS = 6000
 
+// Local state (listed in .gitignore): the history survives AGS restarts.
+const HISTORY_FILE = `${GLib.get_user_config_dir()}/ags/notifications.json`
+
+interface SavedNotification {
+    id: number
+    app_name: string
+    app_icon: string
+    summary: string
+    body: string
+}
+
 export class Notification {
     id: number
     app_name: string
@@ -91,18 +102,27 @@ class Notifd extends GObject.Object {
         )
     }
 
+    static readonly MAX_HISTORY = 100
+
     static _instance: InstanceType<typeof Notifd> | null = null
     static get_default() {
         if (!Notifd._instance) Notifd._instance = new Notifd()
         return Notifd._instance
     }
 
+    // Insertion order = oldest first; get_notifications() hands them out newest first.
     private _notifications = new Map<number, Notification>()
+    private _expiryTimers = new Map<number, number>()
+    // Senders already told their notification is gone. An expired notification
+    // stays in the history, and must not be reported closed a second time when
+    // the user dismisses it later.
+    private _signaled = new Set<number>()
     private _nextId = 1
     private _exported: any = null
 
     constructor() {
         super()
+        this._load()
         // Deferred so owning org.freedesktop.Notifications doesn't block
         // the UI from becoming interactive at startup.
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -112,28 +132,45 @@ class Notifd extends GObject.Object {
     }
 
     get_notifications(): Notification[] {
-        return Array.from(this._notifications.values())
+        return Array.from(this._notifications.values()).reverse()
     }
 
     get_notification(id: number): Notification | undefined {
         return this._notifications.get(id)
     }
 
+    private _signalClosed(id: number, reason: number) {
+        const timer = this._expiryTimers.get(id)
+        if (timer !== undefined) {
+            GLib.source_remove(timer)
+            this._expiryTimers.delete(id)
+        }
+        if (this._signaled.has(id)) return
+        this._signaled.add(id)
+
+        if (!this._exported) return
+        try {
+            this._exported.emit_signal(
+                "NotificationClosed",
+                new GLib.Variant("(uu)", [id, reason]),
+            )
+        } catch (e) {
+            logError(e as Error, "notifd: failed to emit NotificationClosed")
+        }
+    }
+
+    private _forget(id: number) {
+        this._notifications.delete(id)
+        this._signaled.delete(id)
+    }
+
+    // Removes a notification from the history. Only the user (dismiss) or the
+    // sending app (CloseNotification) do this; expiring just ends the popup.
     _close(id: number, reason: number) {
         if (!this._notifications.has(id)) return
-        this._notifications.delete(id)
-
-        if (this._exported) {
-            try {
-                this._exported.emit_signal(
-                    "NotificationClosed",
-                    new GLib.Variant("(uu)", [id, reason]),
-                )
-            } catch (e) {
-                logError(e as Error, "notifd: failed to emit NotificationClosed")
-            }
-        }
-
+        this._signalClosed(id, reason)
+        this._forget(id)
+        this._save()
         this.emit("resolved", id)
     }
 
@@ -148,18 +185,89 @@ class Notifd extends GObject.Object {
         body: string,
         expireTimeoutMs: number,
     ): number {
+        // A replacement (same id) restarts as a fresh notification at the top;
+        // its old timer would otherwise report the new one expired early.
+        const oldTimer = this._expiryTimers.get(id)
+        if (oldTimer !== undefined) {
+            GLib.source_remove(oldTimer)
+            this._expiryTimers.delete(id)
+        }
+        this._forget(id)
         this._notifications.set(
             id,
             new Notification(this, id, { app_name: appName, app_icon: appIcon, summary, body }),
         )
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, expireTimeoutMs, () => {
-            this._close(id, REASON_EXPIRED)
-            return GLib.SOURCE_REMOVE
-        })
+        this._expiryTimers.set(
+            id,
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, expireTimeoutMs, () => {
+                this._expiryTimers.delete(id)
+                this._signalClosed(id, REASON_EXPIRED)
+                return GLib.SOURCE_REMOVE
+            }),
+        )
 
+        while (this._notifications.size > Notifd.MAX_HISTORY) {
+            const oldest = this._notifications.keys().next().value as number
+            this._signalClosed(oldest, REASON_EXPIRED)
+            this._forget(oldest)
+        }
+
+        this._save()
         this.emit("notified", id)
         return id
+    }
+
+    private _load() {
+        if (!GLib.file_test(HISTORY_FILE, GLib.FileTest.EXISTS)) return
+        try {
+            const [, contents] = Gio.File.new_for_path(HISTORY_FILE).load_contents(null)
+            const saved = JSON.parse(new TextDecoder().decode(contents)) as SavedNotification[]
+
+            for (const s of saved.slice(-Notifd.MAX_HISTORY)) {
+                // image-path icons often point at temp files that are gone after a reboot
+                const iconPath = s.app_icon?.startsWith("file://") ? s.app_icon.slice(7) : s.app_icon
+                const icon = iconPath?.startsWith("/") && !GLib.file_test(iconPath, GLib.FileTest.EXISTS)
+                    ? ""
+                    : (s.app_icon ?? "")
+
+                this._notifications.set(
+                    s.id,
+                    new Notification(this, s.id, {
+                        app_name: s.app_name ?? "",
+                        app_icon: icon,
+                        summary: s.summary ?? "",
+                        body: s.body ?? "",
+                    }),
+                )
+                // Their senders belong to a previous session: nobody waits for a close signal.
+                this._signaled.add(s.id)
+                this._nextId = Math.max(this._nextId, s.id + 1)
+            }
+        } catch (e) {
+            logError(e as Error, "notifd: could not load notification history")
+        }
+    }
+
+    private _save() {
+        const data: SavedNotification[] = Array.from(this._notifications.values()).map(n => ({
+            id: n.id,
+            app_name: n.app_name,
+            app_icon: n.app_icon,
+            summary: n.summary,
+            body: n.body,
+        }))
+        try {
+            Gio.File.new_for_path(HISTORY_FILE).replace_contents(
+                new TextEncoder().encode(JSON.stringify(data, null, 2)),
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null,
+            )
+        } catch (e) {
+            logError(e as Error, "notifd: could not save notification history")
+        }
     }
 
     private _own() {

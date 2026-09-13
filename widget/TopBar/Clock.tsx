@@ -67,7 +67,7 @@ export default function Clock() {
     const notifList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 })
     const notifRows: Gtk.Box[] = []
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < Notifd.MAX_HISTORY; i++) {
         const item = new Gtk.Box({ spacing: 8, cssClasses: ["popover-notif-item"], visible: false })
         const icon = new Gtk.Image({ valign: Gtk.Align.CENTER })
         const textBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true })
