@@ -280,8 +280,10 @@ class Bluetooth extends GObject.Object {
                 null,
                 Gio.DBusSignalFlags.NONE,
                 (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
-                    const [path] = params.deep_unpack() as [string]
-                    if (this._devices.delete(path)) this.notify("devices")
+                    // bluez also drops secondary interfaces (e.g. Battery1 on disconnect) while the
+                    // device object lives on; forgetting it then would hide its next reconnection
+                    const [path, ifaces] = params.deep_unpack() as [string, string[]]
+                    if (ifaces.includes(DEVICE_IFACE) && this._devices.delete(path)) this.notify("devices")
                 },
             )
         } catch (e) {
