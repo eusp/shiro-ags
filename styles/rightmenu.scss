@@ -388,14 +388,10 @@ window.RightMenu {
 
   .theme-selector-toggle {
     all: unset;
-    padding: 5px 20px 5px 0px;
+    padding: 5px 20px 5px 20px;
     border-radius: 8px;
     color: rgba(var(--subtext0-rgb), 0.8);
     transition: all 0.2s ease;
-
-    image {
-      color: inherit;
-    }
 
     .theme-toggle-label {
       font-size: 12px;

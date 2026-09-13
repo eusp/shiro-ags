@@ -335,7 +335,6 @@ export default function ThemeSelector() {
     const arrowLabel = new Gtk.Label({ label: "›", cssClasses: ["theme-toggle-arrow"] })
 
     const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
-    inner.append(new Gtk.Image({ iconName: "applications-graphics-symbolic" }))
     inner.append(new Gtk.Label({ label: "Tema", cssClasses: ["theme-toggle-label"], hexpand: true, xalign: 0 }))
     inner.append(currentLabel)
     inner.append(arrowLabel)
