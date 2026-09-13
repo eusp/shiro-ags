@@ -1,6 +1,7 @@
 import GLib from "gi://GLib"
+import { stateFile } from "./localState"
 
-const NOTES_FILE = `${GLib.get_user_config_dir()}/ags/notes.json`
+const NOTES_FILE = stateFile("notes.json")
 
 export interface NotesData {
     text: string

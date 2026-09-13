@@ -1,8 +1,10 @@
+import { stateFile } from "./localState"
+
 declare const imports: any
 const { GObject, GLib, Gio } = imports.gi
 const ByteArray = imports.byteArray
 
-const PINS_FILE = `${GLib.get_user_config_dir()}/ags/pinned.json`
+const PINS_FILE = stateFile("pinned.json")
 
 interface PinnedData {
     menu: string[]

@@ -5,6 +5,7 @@
 import GObject from "gi://GObject"
 import GLib from "gi://GLib?version=2.0"
 import Gio from "gi://Gio?version=2.0"
+import { stateFile } from "./localState"
 
 const IFACE_XML = `
 <node>
@@ -50,8 +51,8 @@ const REASON_CLOSE_CALL = 3
 
 const DEFAULT_TIMEOUT_MS = 6000
 
-// Local state (listed in .gitignore): the history survives AGS restarts.
-const HISTORY_FILE = `${GLib.get_user_config_dir()}/ags/notifications.json`
+// Survives AGS restarts; kept in state/ with the rest of the local shell state.
+const HISTORY_FILE = stateFile("notifications.json")
 
 interface SavedNotification {
     id: number

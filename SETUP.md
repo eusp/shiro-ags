@@ -112,8 +112,8 @@ cd ~/.config/shiro-ags
 npm install
 ```
 
-`notes.json`, `pinned.json` y `bt-devices.json` no están en git: el shell los crea solo
-la primera vez que los necesita.
+`state/` (notas, apps ancladas, dispositivos Bluetooth e historial de notificaciones) no está
+en git: el shell crea la carpeta y sus JSON solo la primera vez que los necesita.
 
 ## 5. Ejecutar
 ```bash

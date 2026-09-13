@@ -90,7 +90,7 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
         - `Clock.tsx`: Reloj + popover de calendario, reloj digital y notificaciones.
     - `SideBar/`, `RightMenu/`: Widgets específicos de cada sección.
 - `scripts/`: Scripts de shell usados por los widgets (`audio-route.sh`).
-- `notes.json`, `pinned.json`, `bt-devices.json`: estado local (notas, apps ancladas, dispositivos Bluetooth recordados). No están en git; se crean solos.
+- `state/`: estado local (`notes.json`, `pinned.json`, `bt-devices.json`, `notifications.json`: notas, apps ancladas, dispositivos Bluetooth recordados e historial de notificaciones). No está en git; el shell crea la carpeta y los archivos solo, y mueve ahí los JSON que versiones anteriores dejaban sueltos en la raíz.
 - `styles/`: Archivos SCSS organizados por componentes.
     - `colors.scss`: Variables CSS del tema activo (auto-generado por shiro-theme, no editar).
     - `popovers.scss`: Sistema global de estilos para todos los popovers/menús.

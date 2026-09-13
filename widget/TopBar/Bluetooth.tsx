@@ -3,10 +3,11 @@ import GLib from "gi://GLib"
 import Gio from "gi://Gio"
 import Bluetooth from "../../lib/bluetooth"
 import { MenuPopover } from "../Shared/MenuPopover"
+import { stateFile } from "../../lib/localState"
 
 Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish")
 
-const DEVICES_FILE = `${GLib.get_home_dir()}/.config/ags/bt-devices.json`
+const DEVICES_FILE = stateFile("bt-devices.json")
 
 interface SavedDevice {
     name: string

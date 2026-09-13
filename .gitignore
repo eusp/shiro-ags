@@ -10,11 +10,13 @@ dist/
 /lib/**/*.js
 /widget/**/*.js
 
-# Estado local que el shell reescribe en cada uso
-notes.json
-pinned.json
-bt-devices.json
-notifications.json
+# Estado local que el shell reescribe en cada uso (lo crea solo al arrancar)
+/state/
+# Versiones anteriores lo dejaban suelto en la raíz; el shell lo mueve a state/
+/notes.json
+/pinned.json
+/bt-devices.json
+/notifications.json
 
 # Basura de programas lanzados con este directorio como cwd
 vkd3d-proton.cache*
