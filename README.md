@@ -89,7 +89,7 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
     - `TopBar/`: Widgets de la barra superior.
         - `Clock.tsx`: Reloj + popover de calendario, reloj digital y notificaciones.
     - `SideBar/`, `RightMenu/`: Widgets específicos de cada sección.
-- `scripts/`: Scripts de shell usados por los widgets (`audio-route.sh`).
+- `scripts/`: Scripts de shell usados por los widgets (`audio-route.sh`: enviar el audio a la otra máquina; `clipboard-send.sh`: copiar un elemento del historial en el portapapeles de la otra máquina).
 - `state/`: estado local (`notes.json`, `pinned.json`, `bt-devices.json`, `notifications.json`: notas, apps ancladas, dispositivos Bluetooth recordados e historial de notificaciones). No está en git; el shell crea la carpeta y los archivos solo, y mueve ahí los JSON que versiones anteriores dejaban sueltos en la raíz.
 - `styles/`: SCSS por componente, con la misma estructura que `widget/`. El orden de carga, que decide la cascada, está en `style.scss`.
     - `colors.scss`: Variables CSS del tema activo (auto-generado por shiro-theme, no editar).
