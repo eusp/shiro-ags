@@ -1,11 +1,9 @@
 import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
-import Bluetooth from "../../lib/bluetooth"
+import Bluetooth, { btLog } from "../../lib/bluetooth"
 import { MenuPopover } from "../Shared/MenuPopover"
 import { stateFile } from "../../lib/localState"
-
-Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish")
 
 const DEVICES_FILE = stateFile("bt-devices.json")
 
@@ -40,7 +38,7 @@ const writeDevices = (devices: SavedDevice[]) => {
 }
 
 // Guarda al frente (más reciente primero) para que "Anteriores" quede
-// ordenado por uso y el auto-reconnect siempre tome el más reciente.
+// ordenado por uso.
 const saveDevice = (dev: SavedDevice) => {
     const devices = loadDevices().filter(d => d.address !== dev.address)
     devices.unshift(dev)
@@ -51,31 +49,21 @@ const forgetDevice = (address: string) => {
     writeDevices(loadDevices().filter(d => d.address !== address))
 }
 
-// Envuelve bluetoothctl en una promesa: resuelve true/false según el
-// código de salida real, en vez de disparar el subproceso a ciegas.
-async function runBluetoothctl(...args: string[]): Promise<boolean> {
-    try {
-        const proc = Gio.Subprocess.new(
-            ["bluetoothctl", ...args],
-            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE
-        )
-        await proc.wait_check_async(null)
-        return true
-    } catch (e) {
-        print(`bluetoothctl ${args.join(" ")} falló: ${e}`)
-        return false
-    }
-}
+let widgetCount = 0
 
 export default function BluetoothIndicator() {
     const bt = Bluetooth.get_default()
     if (!bt) return new Gtk.Box()
 
+    // Hay un widget por barra: el número dice de cuál viene cada línea
+    const widgetId = ++widgetCount
+    const log = (msg: string) => btLog(`#${widgetId} ${msg}`)
+    log(`widget creado (AGS pid ${Gio.Credentials.new().get_unix_pid()})`)
+
     const icon = new Gtk.Image()
     const menubutton = new Gtk.MenuButton({ child: icon })
 
     let isScanning = false
-    let autoReconnectAttempted = false
     let currentDiscovered: Map<string, SavedDevice> = new Map()
 
     // Mismo esquema que Network.tsx: una fila de estado + una fila de
@@ -130,6 +118,7 @@ export default function BluetoothIndicator() {
     })
     let statusHideId = 0
     const showError = (msg: string) => {
+        log(`aviso en el widget: ${msg}`)
         if (statusHideId) GLib.source_remove(statusHideId)
         statusLabel.label = msg
         statusLabel.visible = true
@@ -155,6 +144,7 @@ export default function BluetoothIndicator() {
     // del clic en vez de cerrar sobre un valor capturado en update().
     connectedBtn.connect("clicked", () => {
         const connected = (bt.devices || []).find((d: any) => d.connected)
+        log(`botón [conectado] → desconectar ${connected ? `${connected.name} (${connected.address})` : "(no hay ninguno conectado)"}`)
         if (connected) connected.disconnect_device(null)
     })
 
@@ -183,15 +173,31 @@ export default function BluetoothIndicator() {
         const slot = { row, slotIcon, slotName, connectBtn, forgetBtn, address: "" }
 
         connectBtn.connect("clicked", async () => {
-            if (!slot.address) return
+            // Se leen antes de esperar: updateSavedSlots puede reasignar la fila mientras tanto
+            const { address } = slot
+            const name = slot.slotName.label
+            if (!address) return
+            log(`botón [Anteriores] → conectar ${name} (${address})`)
             connectBtn.sensitive = false
-            const ok = await runBluetoothctl("connect", slot.address)
+            const ok = await connectSaved(address)
             connectBtn.sensitive = true
-            if (!ok) showError(`No se pudo conectar a ${slot.slotName.label}`)
+            log(`botón [Anteriores] ${name}: ${ok ? "conectado" : "no se pudo conectar"}`)
+            if (!ok) showError(`No se pudo conectar a ${name}`)
         })
-        forgetBtn.connect("clicked", () => {
-            if (!slot.address) return
-            forgetDevice(slot.address)
+        forgetBtn.connect("clicked", async () => {
+            const { address } = slot
+            const name = slot.slotName.label
+            if (!address) return
+            // Olvidar también borra el emparejamiento en BlueZ, no solo la fila de Anteriores
+            const dev = findDevice(address)
+            log(`botón [Anteriores] → olvidar ${name} (${address}): ${dev ? "se borra de BlueZ y de bt-devices.json" : "BlueZ no lo tiene, solo se borra de bt-devices.json"}`)
+            if (dev && bt.adapter) {
+                forgetBtn.sensitive = false
+                const error = await bt.adapter.remove_device(dev.path)
+                forgetBtn.sensitive = true
+                if (error) showError(`No se pudo borrar ${name} de BlueZ`)
+            }
+            forgetDevice(address)
             updateSavedSlots()
         })
 
@@ -224,18 +230,23 @@ export default function BluetoothIndicator() {
         const slot = { row, slotIcon, slotName, connectBtn, address: "" }
 
         connectBtn.connect("clicked", async () => {
-            if (!slot.address) return
+            // Se leen antes de esperar: mientras empareja, BlueZ marca el
+            // dispositivo como conectado, updateScanSlots lo saca de la lista y
+            // vacía la dirección de esta fila (el connect salía sin dirección).
+            const { address } = slot
+            const name = slot.slotName.label
+            const dev = currentDiscovered.get(address)
+            if (!address) return
+            log(`botón [Disponibles] → emparejar y conectar ${name} (${address})`)
             connectBtn.sensitive = false
-            // Emparejar puede fallar solo porque ya estaba emparejado antes;
-            // lo que de verdad importa es si el connect final funciona.
-            await runBluetoothctl("pair", slot.address)
-            const connected = await runBluetoothctl("connect", slot.address)
+            await pairDevice(address)
+            const connected = await connectDevice(address)
             connectBtn.sensitive = true
+            log(`botón [Disponibles] ${name}: ${connected ? "conectado, se guarda en Anteriores" : "no se pudo conectar"}`)
             if (!connected) {
-                showError(`No se pudo conectar a ${slot.slotName.label}`)
+                showError(`No se pudo conectar a ${name}`)
                 return
             }
-            const dev = currentDiscovered.get(slot.address)
             if (dev) saveDevice(dev)
             updateSavedSlots()
             updateScanSlots()
@@ -247,6 +258,45 @@ export default function BluetoothIndicator() {
 
     const getConnectedAddress = () =>
         (bt.devices || []).find((d: any) => d.connected)?.address
+
+    // Si BlueZ tiene el dispositivo registrado (emparejado o recién descubierto)
+    const isKnown = (address: string) =>
+        (bt.devices || []).some((d: any) => d.address === address)
+
+    const findDevice = (address: string) =>
+        (bt.devices || []).find((d: any) => d.address === address)
+
+    // Emparejar puede fallar solo porque ya estaba emparejado antes;
+    // lo que de verdad importa es si después conecta.
+    // Con el adaptador en Pairable=false, BlueZ empareja sin guardar la clave
+    // (el kernel queda sin "bondable") y los M100 rechazan después cualquier
+    // perfil (pruebas 3 y 4). Se enciende solo mientras dura el emparejamiento,
+    // como hacen los paneles de Bluetooth de GNOME o KDE.
+    const pairDevice = async (address: string) => {
+        const dev = findDevice(address)
+        if (!dev) return log(`emparejar ${address}: BlueZ no lo tiene`)
+        const adapter = bt.adapter
+        const wasPairable = adapter?.pairable ?? false
+        log(`emparejar ${dev.name}: adaptador Pairable=${wasPairable}${wasPairable ? "" : ", se enciende mientras empareja"}`)
+        if (adapter && !wasPairable) await adapter.set_pairable(true)
+        await dev.pair()
+        if (adapter && !wasPairable) await adapter.set_pairable(false)
+    }
+
+    // Audio primero: con los M100, Connect espera ~21 s al perfil Hands-Free,
+    // que no responde, y al vencer BlueZ corta todo el enlace antes de llegar
+    // a A2DP (prueba 3). Si A2DP falla (o el dispositivo no es de audio), se
+    // intenta Connect con todos los perfiles.
+    const connectDevice = async (address: string) => {
+        const dev = findDevice(address)
+        if (!dev) {
+            log(`conectar ${address}: BlueZ no lo tiene`)
+            return false
+        }
+        if (!await dev.connectAudio()) return true
+        log(`conectar ${dev.name}: A2DP falló, se intenta Connect con todos los perfiles`)
+        return !await dev.connectAll()
+    }
 
     const updateConnected = () => {
         const connected = (bt.devices || []).find((d: any) => d.connected)
@@ -308,18 +358,6 @@ export default function BluetoothIndicator() {
         })
     }
 
-    // Si se prende el adaptador y no hay nada conectado, intenta reconectar
-    // solo al dispositivo más reciente (una vez por ciclo de encendido).
-    const tryAutoReconnect = () => {
-        if (autoReconnectAttempted || !bt.isPowered || getConnectedAddress()) return
-        const [target] = loadDevices()
-        if (!target) return
-        autoReconnectAttempted = true
-        runBluetoothctl("connect", target.address).then(ok => {
-            if (!ok) showError(`No se pudo reconectar a ${target.name}`)
-        })
-    }
-
     // Duración fija de la búsqueda: bluez la sigue haciendo indefinidamente
     // si nadie le manda StopDiscovery, así que sin este límite el ícono de
     // carga (y el escaneo real) quedan corriendo para siempre.
@@ -330,6 +368,7 @@ export default function BluetoothIndicator() {
 
     const stopScan = () => {
         if (!isScanning) return
+        log(`búsqueda: fin (${currentDiscovered.size} dispositivos vistos)`)
         isScanning = false
         scanSpinner.visible = false
         scanSpinner.spinning = false
@@ -339,11 +378,13 @@ export default function BluetoothIndicator() {
         if (scanStopId) { GLib.source_remove(scanStopId); scanStopId = 0 }
     }
 
-    scanBtn.connect("clicked", () => {
-        if (isScanning || !bt.isPowered) return
+    const startScan = (reason: string) => {
+        if (isScanning) return log(`búsqueda (${reason}): ya hay una en curso`)
+        if (!bt.isPowered) return log(`búsqueda (${reason}): adaptador apagado, no se busca`)
         const adapter = bt.adapter
-        if (!adapter) return
+        if (!adapter) return log(`búsqueda (${reason}): no hay adaptador`)
 
+        log(`búsqueda (${reason}): inicio, ${SCAN_DURATION_MS / 1000} s`)
         isScanning = true
         scanSpinner.visible = true
         scanSpinner.spinning = true
@@ -354,7 +395,10 @@ export default function BluetoothIndicator() {
         const collect = () => {
             let changed = false
             for (const dev of bt.devices || []) {
-                if (!currentDiscovered.has(dev.address)) changed = true
+                if (!currentDiscovered.has(dev.address)) {
+                    changed = true
+                    log(`búsqueda: visto ${dev.name || dev.address} (${dev.address}) conectado=${dev.connected}`)
+                }
                 currentDiscovered.set(dev.address, {
                     name: dev.name || dev.address,
                     address: dev.address,
@@ -375,11 +419,52 @@ export default function BluetoothIndicator() {
             stopScan()
             return GLib.SOURCE_REMOVE
         })
+    }
+
+    scanBtn.connect("clicked", () => {
+        log("botón [buscar]")
+        startScan("botón buscar")
     })
+
+    // Espera a que BlueZ vea el dispositivo; false si se acaba el tiempo.
+    const waitForDevice = (address: string, ms: number) => new Promise<boolean>(resolve => {
+        if (isKnown(address)) return resolve(true)
+        const deadline = GLib.get_monotonic_time() + ms * 1000
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            const found = isKnown(address)
+            if (!found && GLib.get_monotonic_time() < deadline) return GLib.SOURCE_CONTINUE
+            resolve(found)
+            return GLib.SOURCE_REMOVE
+        })
+    })
+
+    // "Anteriores" sale de state/bt-devices.json, pero BlueZ puede haber
+    // olvidado el dispositivo (a los audífonos les pasa al apagar el
+    // adaptador, porque BlueZ no conserva su emparejamiento). Un connect
+    // directo entonces falla, así que primero lo busca y lo empareja.
+    const connectSaved = async (address: string) => {
+        if (!isKnown(address)) {
+            if (!bt.isPowered) {
+                log(`conectar ${address}: BlueZ no lo conoce y el adaptador está apagado`)
+                return false
+            }
+            log(`conectar ${address}: BlueZ no lo conoce, se busca hasta ${SCAN_DURATION_MS / 1000} s`)
+            startScan("Anteriores")
+            const t0 = GLib.get_monotonic_time()
+            const found = await waitForDevice(address, SCAN_DURATION_MS)
+            log(`conectar ${address}: ${found ? "apareció" : "no apareció"} tras ${Math.round((GLib.get_monotonic_time() - t0) / 1000)} ms`)
+            if (!found) return false
+            await pairDevice(address)
+        } else {
+            log(`conectar ${address}: BlueZ ya lo conoce, se conecta directo`)
+        }
+        return connectDevice(address)
+    }
 
     let syncingSwitch = false
     powerSwitch.connect("notify::active", () => {
         if (syncingSwitch) return
+        log(`botón [interruptor] → ${powerSwitch.active ? "encender" : "apagar"} Bluetooth (ahora está ${bt.isPowered ? "encendido" : "apagado"})`)
         bt.adapter?.set_powered(powerSwitch.active)
     })
 
@@ -408,8 +493,19 @@ export default function BluetoothIndicator() {
 
     menubutton.set_popover(popover)
 
+    let lastPowered: boolean | null = null
+    let lastConnected: string | null = null
     const update = () => {
         const connected = (bt.devices || []).find((d: any) => d.connected)
+        if (bt.isPowered !== lastPowered) {
+            log(`estado: Bluetooth ${bt.isPowered ? "encendido" : "apagado"}`)
+            lastPowered = bt.isPowered
+        }
+        const connectedDesc = connected ? `${connected.name} (${connected.address})` : null
+        if (connectedDesc !== lastConnected) {
+            log(`estado: conectado → ${connectedDesc ?? "ninguno"}`)
+            lastConnected = connectedDesc
+        }
         const iconName = connected
             ? (connected.icon || "bluetooth-symbolic")
             : bt.isPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
@@ -426,7 +522,6 @@ export default function BluetoothIndicator() {
         scanBtn.sensitive = bt.isPowered
 
         if (!bt.isPowered) {
-            autoReconnectAttempted = false
             // Apagar el adaptador a mitad de una búsqueda no la corta sola:
             // bluez sigue reportando "discovering" hasta que alguien manda
             // StopDiscovery explícitamente.
@@ -435,7 +530,6 @@ export default function BluetoothIndicator() {
         updateConnected()
         updateSavedSlots()
         updateScanSlots()
-        tryAutoReconnect()
     }
 
     bt.connect("notify::is-powered", update)

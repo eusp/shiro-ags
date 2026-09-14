@@ -33,6 +33,11 @@ const DBusProxy = Gio.DBusProxy as unknown as {
 const BLUEZ_BUS = "org.bluez"
 const ADAPTER_IFACE = "org.bluez.Adapter1"
 const DEVICE_IFACE = "org.bluez.Device1"
+const A2DP_SINK_UUID = "0000110b-0000-1000-8000-00805f9b34fb"
+
+// Espera máxima de las llamadas que negocian con el dispositivo: Connect puede
+// pasar de 20 s cuando un perfil (Hands-Free en los M100) no responde.
+const DEVICE_CALL_TIMEOUT_MS = 60000
 
 async function proxy(path: string, iface: string): Promise<any> {
     return DBusProxy.new_for_bus(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null, BLUEZ_BUS, path, iface, null)
@@ -43,19 +48,51 @@ function readProp(p: any, name: string): any {
     return v ? v.deep_unpack() : null
 }
 
-function setRemoteProperty(p: any, iface: string, name: string, variant: GLib.Variant) {
-    p.get_connection().call(
-        p.get_name(),
-        p.get_object_path(),
-        "org.freedesktop.DBus.Properties",
-        "Set",
-        new GLib.Variant("(ssv)", [iface, name, variant]),
-        null,
-        Gio.DBusCallFlags.NONE,
-        -1,
-        null,
-        null,
-    )
+// Registro de Bluetooth con hora al milisegundo; sale por la terminal de `ags run`.
+export function btLog(msg: string) {
+    const now = GLib.DateTime.new_now_local()
+    const ms = String(Math.floor(now.get_microsecond() / 1000)).padStart(3, "0")
+    print(`[bt ${now.format("%H:%M:%S")}.${ms}] ${msg}`)
+}
+
+// Cambian varias veces por segundo durante una búsqueda y taparían el resto del registro
+const NOISY_PROPS = new Set(["RSSI", "TxPower", "ManufacturerData", "ServiceData", "AdvertisingFlags", "AdvertisingData"])
+
+function describeChanges(changed: GLib.Variant): string {
+    const props = (changed as any).recursiveUnpack() as Record<string, unknown>
+    return Object.entries(props)
+        .filter(([k]) => !NOISY_PROPS.has(k))
+        .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+        .join(", ")
+}
+
+// Resuelve null si salió bien, o el error de BlueZ
+function setRemoteProperty(p: any, iface: string, name: string, variant: GLib.Variant): Promise<string | null> {
+    const what = `D-Bus Set ${name}=${JSON.stringify(variant.deep_unpack())} en ${p.get_object_path()}`
+    btLog(`→ ${what}`)
+    return new Promise(resolve => {
+        p.get_connection().call(
+            p.get_name(),
+            p.get_object_path(),
+            "org.freedesktop.DBus.Properties",
+            "Set",
+            new GLib.Variant("(ssv)", [iface, name, variant]),
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (conn: Gio.DBusConnection, res: Gio.AsyncResult) => {
+                try {
+                    conn.call_finish(res)
+                    btLog(`← ${what}: OK`)
+                    resolve(null)
+                } catch (e) {
+                    btLog(`← ${what}: error ${e}`)
+                    resolve(String(e))
+                }
+            },
+        )
+    })
 }
 
 export class Device {
@@ -74,7 +111,10 @@ export class Device {
         try {
             this.proxy = await proxy(this.path, DEVICE_IFACE)
             this.refresh()
-            this.proxy.connect("g-properties-changed", () => {
+            btLog(`dispositivo registrado: ${this.name} (${this.address}) Connected=${this.connected} Paired=${readProp(this.proxy, "Paired")} Bonded=${readProp(this.proxy, "Bonded")} Trusted=${readProp(this.proxy, "Trusted")}`)
+            this.proxy.connect("g-properties-changed", (_p: any, changed: GLib.Variant) => {
+                const desc = describeChanges(changed)
+                if (desc) btLog(`dispositivo ${this.name} (${this.address}) cambió: ${desc}`)
                 this.refresh()
                 onChange()
             })
@@ -91,13 +131,41 @@ export class Device {
         this.connected = readProp(this.proxy, "Connected") || false
     }
 
+    // Llama a un método de Device1: null si salió bien, o el error que da BlueZ
+    private async _call(method: string, params: GLib.Variant | null, label = method): Promise<string | null> {
+        if (!this.proxy) return "sin proxy de D-Bus"
+        const started = GLib.get_monotonic_time()
+        const ms = () => Math.round((GLib.get_monotonic_time() - started) / 1000)
+        btLog(`→ D-Bus ${label} ${this.name} (${this.address})`)
+        try {
+            await this.proxy.call(method, params, Gio.DBusCallFlags.NONE, DEVICE_CALL_TIMEOUT_MS, null)
+            btLog(`← D-Bus ${label} ${this.address}: OK en ${ms()} ms`)
+            return null
+        } catch (e) {
+            const msg = (e as Error).message ?? String(e)
+            btLog(`← D-Bus ${label} ${this.address}: error en ${ms()} ms: ${msg}`)
+            return msg
+        }
+    }
+
+    pair() {
+        return this._call("Pair", null)
+    }
+
+    connectAll() {
+        return this._call("Connect", null)
+    }
+
+    connectAudio() {
+        return this._call("ConnectProfile", new GLib.Variant("(s)", [A2DP_SINK_UUID]), "ConnectProfile A2DP")
+    }
+
     disconnect_device(_arg?: any) {
         if (!this.proxy) return
-        try {
-            this.proxy.call("Disconnect", null, Gio.DBusCallFlags.NONE, -1, null, null)
-        } catch (e) {
-            logError(e as Error, "bluetooth: disconnect failed")
-        }
+        btLog(`→ D-Bus Disconnect ${this.name} (${this.address})`)
+        this.proxy.call("Disconnect", null, Gio.DBusCallFlags.NONE, -1, null)
+            .then(() => btLog(`← D-Bus Disconnect ${this.address}: OK`))
+            .catch((e: unknown) => btLog(`← D-Bus Disconnect ${this.address}: error ${e}`))
     }
 }
 
@@ -126,8 +194,13 @@ class Adapter extends GObject.Object {
     async init() {
         try {
             this._proxy = await proxy(this.path, ADAPTER_IFACE)
-            this._proxy.connect("g-properties-changed", () => this._refresh())
+            this._proxy.connect("g-properties-changed", (_p: any, changed: GLib.Variant) => {
+                const desc = describeChanges(changed)
+                if (desc) btLog(`adaptador cambió: ${desc}`)
+                this._refresh()
+            })
             this._refresh()
+            btLog(`adaptador ${this.path}: Powered=${this._powered} Pairable=${readProp(this._proxy, "Pairable")} Discovering=${readProp(this._proxy, "Discovering")}`)
         } catch (e) {
             logError(e as Error, "bluetooth: failed to create adapter proxy")
         }
@@ -142,22 +215,44 @@ class Adapter extends GObject.Object {
         setRemoteProperty(this._proxy, ADAPTER_IFACE, "Powered", new GLib.Variant("b", value))
     }
 
-    start_discovery() {
-        if (!this._proxy) return
+    get pairable(): boolean {
+        return readProp(this._proxy, "Pairable") || false
+    }
+
+    // Borra el dispositivo de BlueZ, con su emparejamiento guardado
+    async remove_device(devicePath: string): Promise<string | null> {
+        if (!this._proxy) return "sin proxy de D-Bus"
+        btLog(`→ D-Bus RemoveDevice ${devicePath}`)
         try {
-            this._proxy.call("StartDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
+            await this._proxy.call("RemoveDevice", new GLib.Variant("(o)", [devicePath]), Gio.DBusCallFlags.NONE, -1, null)
+            btLog(`← D-Bus RemoveDevice ${devicePath}: OK`)
+            return null
         } catch (e) {
-            logError(e as Error, "bluetooth: start_discovery failed")
+            const msg = (e as Error).message ?? String(e)
+            btLog(`← D-Bus RemoveDevice ${devicePath}: error ${msg}`)
+            return msg
         }
     }
 
+    set_pairable(value: boolean): Promise<string | null> {
+        if (!this._proxy) return Promise.resolve("sin proxy de D-Bus")
+        return setRemoteProperty(this._proxy, ADAPTER_IFACE, "Pairable", new GLib.Variant("b", value))
+    }
+
+    start_discovery() {
+        this._callLogged("StartDiscovery")
+    }
+
     stop_discovery() {
+        this._callLogged("StopDiscovery")
+    }
+
+    private _callLogged(method: string) {
         if (!this._proxy) return
-        try {
-            this._proxy.call("StopDiscovery", null, Gio.DBusCallFlags.NONE, -1, null, null)
-        } catch (e) {
-            logError(e as Error, "bluetooth: stop_discovery failed")
-        }
+        btLog(`→ D-Bus ${method}`)
+        this._proxy.call(method, null, Gio.DBusCallFlags.NONE, -1, null)
+            .then(() => btLog(`← D-Bus ${method}: OK`))
+            .catch((e: unknown) => btLog(`← D-Bus ${method}: error ${e}`))
     }
 
     private _refresh() {
@@ -254,6 +349,7 @@ class Bluetooth extends GObject.Object {
                 if (ifaces[ADAPTER_IFACE]) this._addAdapter(path)
                 if (ifaces[DEVICE_IFACE]) this._addDevice(path)
             }
+            btLog(`BlueZ al conectar: ${this._adapter ? "hay adaptador" : "SIN adaptador"}, dispositivos: ${[...this._devices.keys()].map(p => p.split("/").pop()).join(", ") || "ninguno"}`)
             this.notify("devices")
 
             const connection = this._objectManager.get_connection()
@@ -267,6 +363,7 @@ class Bluetooth extends GObject.Object {
                 Gio.DBusSignalFlags.NONE,
                 (_c: any, _s: string, _p: string, _i: string, _sig: string, params: GLib.Variant) => {
                     const [path, ifaces] = (params as any).recursiveUnpack()
+                    btLog(`BlueZ InterfacesAdded ${path}: ${Object.keys(ifaces).join(", ")}`)
                     if (ifaces[ADAPTER_IFACE]) this._addAdapter(path)
                     if (ifaces[DEVICE_IFACE]) this._addDevice(path)
                 },
@@ -283,7 +380,9 @@ class Bluetooth extends GObject.Object {
                     // bluez also drops secondary interfaces (e.g. Battery1 on disconnect) while the
                     // device object lives on; forgetting it then would hide its next reconnection
                     const [path, ifaces] = params.deep_unpack() as [string, string[]]
-                    if (ifaces.includes(DEVICE_IFACE) && this._devices.delete(path)) this.notify("devices")
+                    const dropped = ifaces.includes(DEVICE_IFACE) && this._devices.delete(path)
+                    btLog(`BlueZ InterfacesRemoved ${path}: ${ifaces.join(", ")}${dropped ? " → se quita de la lista" : ""}`)
+                    if (dropped) this.notify("devices")
                 },
             )
         } catch (e) {
