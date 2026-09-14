@@ -52,6 +52,8 @@ cd ~/.config/shiro-ags && npm install
 ### 5. Detalles de Arch
 - **`*.local` (audio-route.sh)**: Arch no resuelve mDNS por defecto. `sudo systemctl enable --now avahi-daemon`
   y en `/etc/nsswitch.conf` agrega `mdns_minimal [NOTFOUND=return]` antes de `resolve` en la línea `hosts:`.
+- **Firewall (audio-route.sh)**: el audio viaja por RTP y el equipo que recibe necesita el puerto UDP 46000 abierto
+  para la red local: `sudo ufw allow from 192.168.0.0/16 to any port 46000 proto udp comment 'audio-route rtp'`.
 - **Hostnames**: `scripts/audio-route.sh` busca `CachyOS-PC` / `CachyOS-Laptop`. Si cambias el nombre de los
   equipos, edita `PC_HOST`/`LT_HOST` (y las direcciones `.local`) al principio del script.
 - **Brillo**: `sudo usermod -aG video $USER` en el laptop.
