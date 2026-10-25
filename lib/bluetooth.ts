@@ -15,6 +15,7 @@ import Gio from "gi://Gio?version=2.0"
 // else in the shell.
 Gio._promisify(Gio.DBusProxy, "new_for_bus", "new_for_bus_finish")
 Gio._promisify(Gio.DBusProxy.prototype, "call", "call_finish")
+Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish")
 
 // The @girs types only know the callback form; once promisified, omitting the
 // callback returns a Promise. Still called as a method so `this` stays bound.
@@ -81,6 +82,23 @@ function describeChanges(changed: GLib.Variant): string {
         .filter(([k]) => !NOISY_PROPS.has(k))
         .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
         .join(", ")
+}
+
+const sleep = (ms: number) => new Promise<void>(resolve =>
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+        resolve()
+        return GLib.SOURCE_REMOVE
+    }))
+
+async function unblockRfkill() {
+    btLog("→ rfkill unblock bluetooth")
+    try {
+        const proc = Gio.Subprocess.new(["rfkill", "unblock", "bluetooth"], Gio.SubprocessFlags.STDERR_PIPE)
+        await (proc as any).wait_check_async(null)
+        btLog("← rfkill unblock bluetooth: OK")
+    } catch (e) {
+        btLog(`← rfkill unblock bluetooth: error ${(e as Error).message ?? e}`)
+    }
 }
 
 // Resuelve null si salió bien, o el error de BlueZ
@@ -234,8 +252,17 @@ class Adapter extends GObject.Object {
         return this._powered
     }
 
-    set_powered(value: boolean) {
+    // Con el radio bloqueado por rfkill (modo avión, o el bloqueo que
+    // systemd-rfkill restaura en cada arranque) BlueZ responde "Failed" a
+    // Powered=true. GNOME lo desbloquea antes de encender; aquí igual, el
+    // usuario de la sesión puede escribir en /dev/rfkill.
+    async set_powered(value: boolean) {
         if (!this._proxy) return
+        if (value && readProp(this._proxy, "PowerState") === "off-blocked") {
+            await unblockRfkill()
+            // BlueZ tarda un momento en enterarse del desbloqueo
+            await sleep(500)
+        }
         setRemoteProperty(this._proxy, ADAPTER_IFACE, "Powered", new GLib.Variant("b", value))
     }
 
