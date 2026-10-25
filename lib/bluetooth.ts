@@ -35,6 +35,23 @@ const ADAPTER_IFACE = "org.bluez.Adapter1"
 const DEVICE_IFACE = "org.bluez.Device1"
 const A2DP_SINK_UUID = "0000110b-0000-1000-8000-00805f9b34fb"
 
+const AGENT_PATH = "/shiro/bluetooth/agent"
+const AGENT_XML = `<node><interface name="org.bluez.Agent1">
+  <method name="Release"/>
+  <method name="RequestPinCode"><arg type="o" direction="in"/><arg type="s" direction="out"/></method>
+  <method name="DisplayPinCode"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+  <method name="RequestPasskey"><arg type="o" direction="in"/><arg type="u" direction="out"/></method>
+  <method name="DisplayPasskey"><arg type="o" direction="in"/><arg type="u" direction="in"/><arg type="q" direction="in"/></method>
+  <method name="RequestConfirmation"><arg type="o" direction="in"/><arg type="u" direction="in"/></method>
+  <method name="RequestAuthorization"><arg type="o" direction="in"/></method>
+  <method name="AuthorizeService"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+  <method name="Cancel"/>
+</interface></node>`
+
+// Dispositivo que el widget está emparejando ahora; el agente solo acepta
+// emparejamientos de ese, no los que inicie cualquier aparato cercano.
+let pairingPath: string | null = null
+
 // Espera máxima de las llamadas que negocian con el dispositivo: Connect puede
 // pasar de 20 s cuando un perfil (Hands-Free en los M100) no responde.
 const DEVICE_CALL_TIMEOUT_MS = 60000
@@ -148,8 +165,15 @@ export class Device {
         }
     }
 
-    pair() {
-        return this._call("Pair", null)
+    // Tras emparejar se marca Trusted, como hacen GNOME o KDE: así BlueZ deja
+    // entrar los perfiles cuando el dispositivo se reconecta solo al prenderse.
+    async pair() {
+        pairingPath = this.path
+        const error = await this._call("Pair", null)
+        pairingPath = null
+        if (readProp(this.proxy, "Paired") && !readProp(this.proxy, "Trusted"))
+            await setRemoteProperty(this.proxy, DEVICE_IFACE, "Trusted", new GLib.Variant("b", true))
+        return error
     }
 
     connectAll() {
@@ -261,6 +285,70 @@ class Adapter extends GObject.Object {
     }
 }
 
+// Agente de BlueZ (org.bluez.Agent1). Sin ningún agente registrado, cuando un
+// dispositivo se reconecta solo (prender los audífonos) BlueZ rechaza sus
+// perfiles: "Authentication attempt without agent" → Access denied en A2DP y
+// Hands-Free, conecta 1 s y se cae. También deja el adaptador en Pairable=false.
+// GNOME o KDE traen su propio agente; en esta sesión solo está el de AGS.
+class Agent {
+    private _exported: any
+    private _isPaired: (path: string) => boolean
+
+    constructor(isPaired: (path: string) => boolean) {
+        this._isPaired = isPaired
+        this._exported = (Gio.DBusExportedObject as any).wrapJSObject(AGENT_XML, this)
+    }
+
+    export(connection: Gio.DBusConnection) {
+        this._exported.export(connection, AGENT_PATH)
+    }
+
+    // Se repite cada vez que bluetoothd (re)aparece en el bus: al reiniciarse olvida los agentes
+    async register() {
+        try {
+            const manager = await proxy("/org/bluez", "org.bluez.AgentManager1")
+            await manager.call("RegisterAgent", new GLib.Variant("(os)", [AGENT_PATH, "NoInputNoOutput"]), Gio.DBusCallFlags.NONE, -1, null)
+            await manager.call("RequestDefaultAgent", new GLib.Variant("(o)", [AGENT_PATH]), Gio.DBusCallFlags.NONE, -1, null)
+            btLog("agente registrado (NoInputNoOutput, por defecto)")
+        } catch (e) {
+            btLog(`agente: no se pudo registrar: ${(e as Error).message ?? e}`)
+        }
+    }
+
+    private _answer(what: string, device: string, ok: boolean, invocation: Gio.DBusMethodInvocation, value: GLib.Variant | null = null) {
+        btLog(`agente: ${what} ${device.split("/").pop()} → ${ok ? "aceptado" : "rechazado"}`)
+        if (ok) invocation.return_value(value)
+        else invocation.return_dbus_error("org.bluez.Error.Rejected", `${what} rechazado`)
+    }
+
+    // Emparejamiento: solo el que pidió el widget
+    RequestPinCodeAsync([device]: [string], inv: Gio.DBusMethodInvocation) {
+        this._answer("RequestPinCode", device, device === pairingPath, inv, new GLib.Variant("(s)", ["0000"]))
+    }
+
+    RequestPasskeyAsync([device]: [string], inv: Gio.DBusMethodInvocation) {
+        this._answer("RequestPasskey", device, device === pairingPath, inv, new GLib.Variant("(u)", [0]))
+    }
+
+    RequestConfirmationAsync([device]: [string, number], inv: Gio.DBusMethodInvocation) {
+        this._answer("RequestConfirmation", device, device === pairingPath, inv)
+    }
+
+    RequestAuthorizationAsync([device]: [string], inv: Gio.DBusMethodInvocation) {
+        this._answer("RequestAuthorization", device, device === pairingPath, inv)
+    }
+
+    // Perfiles al reconectar: se aceptan de lo ya emparejado
+    AuthorizeServiceAsync([device, uuid]: [string, string], inv: Gio.DBusMethodInvocation) {
+        this._answer(`AuthorizeService ${uuid.slice(4, 8)}`, device, this._isPaired(device), inv)
+    }
+
+    DisplayPinCode() {}
+    DisplayPasskey() {}
+    Cancel() { btLog("agente: BlueZ canceló la petición en curso") }
+    Release() { btLog("agente: BlueZ lo liberó") }
+}
+
 class Bluetooth extends GObject.Object {
     static {
         GObject.registerClass(
@@ -353,6 +441,10 @@ class Bluetooth extends GObject.Object {
             this.notify("devices")
 
             const connection = this._objectManager.get_connection()
+
+            const agent = new Agent(path => !!readProp(this._devices.get(path)?.proxy, "Paired"))
+            agent.export(connection)
+            Gio.bus_watch_name_on_connection(connection, BLUEZ_BUS, Gio.BusNameWatcherFlags.NONE, () => agent.register(), null)
 
             connection.signal_subscribe(
                 BLUEZ_BUS,
