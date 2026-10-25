@@ -13,8 +13,7 @@ Esta guía instala todo lo necesario para que esta configuración de AGS funcion
 sudo pacman -S --needed git base-devel nodejs npm curl \
     hyprland gjs gtk4 gtk4-layer-shell dart-sass libnotify wl-clipboard cliphist \
     pipewire-pulse wireplumber libpulse pavucontrol networkmanager nm-connection-editor \
-    upower bluez bluez-utils brightnessctl \
-    meson ninja go gobject-introspection \
+    upower bluez bluez-utils brightnessctl gobject-introspection \
     ttf-jetbrains-mono-nerd adwaita-icon-theme avahi nss-mdns
 ```
 
@@ -29,17 +28,16 @@ sudo pacman -S --needed paru      # CachyOS ya no trae helper de AUR preinstalad
 paru -S libastal-io-git libastal-4-git
 ```
 
-### 3. AGS v3 desde el código fuente
-Existe `aylurs-gtk-shell-git` en AUR, pero se instala en `/usr`, y `package.json` apunta a
-`/usr/local/share/ags/js` (tipos para `npm run check`). Compilarlo deja todo igual que en Fedora:
+### 3. Librería de AGS v3
+Solo se usa la librería JS de AGS (TypeScript, se instala tal cual), no su CLI, que está escrito
+en Go: el comando `ags` es `scripts/ags` de este repo (ver [Ejecutar](#5-ejecutar)).
+`package.json` la busca en `/usr/local/share/ags/js`:
 
 ```bash
-git clone https://github.com/aylur/ags.git ~/ags
-cd ~/ags
-npm install
-meson setup build
-sudo meson install -C build
-ags --version
+sudo mkdir -p /usr/local/share/ags/js
+curl -fsSL https://github.com/aylur/ags/archive/refs/tags/v3.1.2.tar.gz | tar -xz -C /tmp
+sudo cp -r /tmp/ags-3.1.2/{lib,package.json,package-lock.json} /usr/local/share/ags/js/
+cd /usr/local/share/ags/js && sudo npm install --omit=dev   # deja gnim en node_modules/
 ```
 
 ### 4. Clonar la configuración
@@ -47,6 +45,7 @@ ags --version
 git clone https://github.com/eusp/shiro-ags.git ~/.config/shiro-ags
 ln -s ~/.config/shiro-ags ~/.config/ags
 cd ~/.config/shiro-ags && npm install
+sudo ln -sfn ~/.config/shiro-ags/scripts/ags /usr/local/bin/ags
 ```
 
 ### 5. Detalles de Arch
@@ -91,19 +90,17 @@ sudo dnf copr enable sdegler/hyprland
 sudo dnf install astal-io astal-gtk4
 ```
 
-## 3. AGS v3 (compilado desde el código fuente)
-AGS no tiene paquete; se compila desde https://github.com/aylur/ags e instala en `/usr/local`.
+## 3. Librería de AGS v3
+Igual que en Arch: solo la librería JS, sin compilar nada (no hace falta Go).
 
 ```bash
-sudo dnf install golang meson ninja-build
-git clone https://github.com/aylur/ags.git ~/ags
-cd ~/ags
-meson setup build
-sudo meson install -C build
-ags --version
+sudo mkdir -p /usr/local/share/ags/js
+curl -fsSL https://github.com/aylur/ags/archive/refs/tags/v3.1.2.tar.gz | tar -xz -C /tmp
+sudo cp -r /tmp/ags-3.1.2/{lib,package.json,package-lock.json} /usr/local/share/ags/js/
+cd /usr/local/share/ags/js && sudo npm install --omit=dev   # deja gnim en node_modules/
 ```
 
-AGS compila los estilos SCSS con `sass` (dart-sass), que tiene que estar en el `PATH`
+Los estilos SCSS se compilan con `sass` (dart-sass), que tiene que estar en el `PATH`
 (en esta máquina está en `/usr/local/bin/sass`).
 
 ## 4. Clonar la configuración
@@ -112,6 +109,7 @@ git clone https://github.com/eusp/shiro-ags.git ~/.config/shiro-ags
 ln -s ~/.config/shiro-ags ~/.config/ags
 cd ~/.config/shiro-ags
 npm install
+sudo ln -sfn ~/.config/shiro-ags/scripts/ags /usr/local/bin/ags
 ```
 
 `state/` (notas, apps ancladas, dispositivos Bluetooth e historial de notificaciones) no está
@@ -124,8 +122,15 @@ ags run ~/.config/ags/app.ts
 
 Hyprland lo lanza al iniciar sesión desde `~/.config/hypr/hyprland.lua`.
 
-AGS ejecuta los `.ts`/`.tsx` directamente (los empaqueta en memoria con esbuild), así que
-**no hay paso de compilación**. `npm run check` solo verifica tipos y nunca genera `.js`.
+`ags` es `scripts/ags`, que reemplaza al CLI de AGS (escrito en Go) con los mismos comandos
+(`run`, `quit`, `toggle`, `request`, `list`, `inspect`, `bundle`). `ags run` empaqueta los
+`.ts`/`.tsx` en `$XDG_RUNTIME_DIR/ags.js` con `scripts/build.mjs` y lo ejecuta con `gjs`:
+- **Rolldown** junta los módulos, y **TypeScript** convierte cada archivo (JSX y los decoradores
+  `@register`/`@property` de gnim, que gjs todavía no entiende).
+- Los `.scss` se compilan con `sass` y se importan como texto.
+- `toggle`, `request` y `quit` hablan con el shell por D-Bus (`io.Astal.ags`) con `busctl`.
+
+No hay paso de compilación aparte: `npm run check` solo verifica tipos y nunca genera `.js`.
 
 Tipos para el editor y `npm run check`:
 - GJS/GTK4/GioUnix/Adw vienen de los paquetes `@girs/*` de npm (versión `4.0.0-rc.17`, la que usa gnim).

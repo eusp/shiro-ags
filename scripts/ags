@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Reemplazo del CLI de AGS (escrito en Go) con los mismos subcomandos que usa
+# shiro: empaqueta con Rolldown (scripts/build.mjs), corre con gjs y habla con
+# la instancia por D-Bus (io.Astal.<instancia>) con busctl, como hacía el CLI.
+set -euo pipefail
+
+SHIRO_AGS="$(dirname "$(readlink -f "$0")")/.."
+INSTANCE=ags
+LAYER_SHELL=/usr/lib/libgtk4-layer-shell.so
+
+usage() {
+    cat <<EOF
+Uso: ags <comando> [argumentos]
+
+  run [app.ts]            empaqueta y arranca el shell (por defecto ~/.config/ags/app.ts)
+  bundle <entrada> <salida>  solo empaqueta (sirve para comprobar que compila)
+  quit                    cierra el shell
+  toggle <ventana>        muestra u oculta una ventana
+  request <args...>       manda una petición al requestHandler de app.ts
+  list                    lista las instancias en marcha
+  inspect                 abre el inspector de GTK
+EOF
+}
+
+# Llama a un método de io.Astal.Application; imprime el string que devuelva
+call() {
+    local method="$1"; shift
+    local out
+    out="$(busctl --user --json=short call "io.Astal.$INSTANCE" /io/Astal/Application \
+        io.Astal.Application "$method" "$@")" || exit 1
+    [ -n "$out" ] && node -e 'const r = JSON.parse(process.argv[1]); if (r.data?.[0]) console.log(r.data[0])' "$out"
+    return 0
+}
+
+build() {
+    node "$SHIRO_AGS/scripts/build.mjs" "$1" "$2"
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+    run)
+        entry="$(readlink -f "${1:-$HOME/.config/ags/app.ts}")"
+        [ $# -gt 0 ] && shift
+        out="${XDG_RUNTIME_DIR:-/tmp}/ags.js"
+        build "$entry" "$out"
+        cd "$(dirname "$entry")"
+        LD_PRELOAD="$LAYER_SHELL" exec gjs -m "$out" "$@"
+        ;;
+    bundle)
+        [ $# -eq 2 ] || { usage; exit 1; }
+        build "$1" "$2"
+        ;;
+    # Quit corta la conexión antes de responder: ese error es el esperado
+    quit)    busctl --user call "io.Astal.$INSTANCE" /io/Astal/Application io.Astal.Application Quit 2>/dev/null || true ;;
+    toggle)  call ToggleWindow s "$1" ;;
+    request) call Request as $# "$@" ;;
+    list)    busctl --user list --no-legend | awk '$1 ~ /^io\.Astal\./ { sub(/^io\.Astal\./, "", $1); print $1 }' ;;
+    inspect) call Inspector ;;
+    -v|--version) echo "shiro-ags (sin Go)" ;;
+    ""|-h|--help|help) usage ;;
+    *) echo "ags: comando desconocido: $cmd" >&2; usage; exit 1 ;;
+esac

@@ -22,8 +22,8 @@ Qué se rompió en el pasado, por qué ya no debería volver a pasar, y qué rev
   por integraciones propias en `lib/` (hyprctl, D-Bus, wpctl). Solo se depende del core:
   `astal-io` y `astal-gtk4`.
 - **Astal core** viene del COPR `sdegler/hyprland` (`solopasha/hyprland` quedó deshabilitado).
-- **AGS v3** está compilado desde el código fuente en `~/ags` e instalado en `/usr/local`,
-  así que ningún `dnf` lo puede desinstalar.
+- **AGS v3:** solo su librería JS, en `/usr/local/share/ags/js`. El comando `ags` es
+  `scripts/ags` de este repo (enlazado en `/usr/local/bin/ags`), así que no se compila nada ni hace falta Go.
 - **Hyprland 0.55+ con config en Lua:** los `hyprctl dispatch` clásicos y `hyprctl keyword` no
   funcionan; el código usa `hyprctl dispatch "hl.dsp.…"` y `hyprctl switchxkblayout`.
 
@@ -44,8 +44,9 @@ ags quit; ags run ~/.config/ags/app.ts
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | `Typelib file for namespace 'Astal', version '4.0' not found` | Se desinstaló `astal-gtk4`/`astal-io` | `sudo dnf install astal-io astal-gtk4` (COPR `sdegler/hyprland`) |
-| `ags: command not found` | Se borró `/usr/local/bin/ags` | `cd ~/ags && git pull && sudo meson install -C build` |
-| Error de símbolo/librería al iniciar AGS tras actualizar el sistema | AGS compilado contra versiones viejas de Astal/gjs | `cd ~/ags && meson setup --wipe build && sudo meson install -C build` |
+| `ags: command not found` | Se borró `/usr/local/bin/ags` | `sudo ln -sfn ~/.config/shiro-ags/scripts/ags /usr/local/bin/ags` |
+| `Cannot find package 'rolldown'` | Faltan las dependencias de npm | `cd ~/.config/shiro-ags && npm install` |
+| `SyntaxError: illegal character U+0040` o `meta is undefined` | `scripts/build.mjs` no convirtió los decoradores de gnim | Revisar el plugin `typescript` y el `banner` de `Symbol.metadata` en `scripts/build.mjs` |
 | Botones de Hyprland (salir, layout de teclado) no hacen nada | Sintaxis clásica de `hyprctl` con config en Lua | Usar `hl.dsp.*` / `switchxkblayout` (ver commits `6ef0b09`, `51328c5`) |
 | Los estilos no cargan | Falta `sass` en el `PATH` | Instalar dart-sass |
 

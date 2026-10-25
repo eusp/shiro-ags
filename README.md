@@ -71,7 +71,7 @@ Esto significa que AGS ya no depende de que `astal-libs` tenga la misma versión
 
 ## 🚀 Instalación y Uso
 
-1.  Instala las dependencias y AGS v3 siguiendo [SETUP.md](SETUP.md) (Arch/CachyOS o Fedora/Nobara).
+1.  Instala las dependencias y la librería de AGS v3 siguiendo [SETUP.md](SETUP.md) (Arch/CachyOS o Fedora/Nobara). No hace falta Go: el comando `ags` es `scripts/ags`.
 2.  Clona el repositorio en `~/.config/shiro-ags` y enlázalo como `~/.config/ags` — o deja que lo haga `install.sh` de [shiro-theme](https://github.com/eusp/shiro-theme).
 3.  Ejecuta con:
     ```bash

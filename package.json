@@ -5,7 +5,7 @@
   "main": "app.ts",
   "type": "module",
   "scripts": {
-    "dev": "ags run app.ts",
+    "dev": "./scripts/ags run app.ts",
     "check": "tsc --noEmit --pretty false | grep 'error TS' | grep -v '/share/ags/js/'; test $? -eq 1"
   },
   "devDependencies": {
@@ -15,6 +15,7 @@
     "@girs/gtk-4.0": "4.23.0-4.0.0-rc.17",
     "ags": "file:/usr/local/share/ags/js",
     "gnim": "file:/usr/local/share/ags/js/node_modules/gnim",
+    "rolldown": "1.2.13",
     "typescript": "^5.9.0"
   },
   "prettier": {
