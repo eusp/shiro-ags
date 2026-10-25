@@ -119,6 +119,17 @@ export class PinsService extends GObject.Object {
         this.save();
     }
 
+    // Mueve una app anclada al lugar que ocupa otra (arrastrar y soltar)
+    moveMenu(id: string, targetId: string) {
+        const from = this._data.menu.indexOf(id);
+        const to = this._data.menu.indexOf(targetId);
+        if (from < 0 || to < 0 || from === to) return;
+        this._data.menu.splice(from, 1);
+        this._data.menu.splice(to, 0, id);
+        this.emit('menu-changed');
+        this.save();
+    }
+
     toggleSidebar(id: string) {
         const index = this._data.sidebar.indexOf(id);
         if (index > -1) {

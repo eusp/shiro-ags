@@ -12,7 +12,6 @@ const DEFAULT_APPS = [
     { icon: "org.gnome.Ptyxis", command: "ptyxis", tooltip: "Terminal", matches: "ptyxis", id: "org.gnome.Ptyxis.desktop" },
     { icon: "org.gnome.Nautilus", command: "nautilus", tooltip: "Nautilus", matches: "nautilus", id: "org.gnome.Nautilus.desktop" },
     { icon: "firefox", command: "firefox", tooltip: "Firefox", matches: "firefox", id: "firefox.desktop" },
-    { icon: "steam", command: "steam", tooltip: "Steam", matches: "steam", id: "steam.desktop" },
 ]
 
 function launchDetached(command: string) {
@@ -92,6 +91,10 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
         onClick: () => pins.toggleSidebar(appId)
     })
     sections.push({ items: pinningItems })
+
+    // El nombre de la app va siempre arriba, tenga o no acciones propias
+    const appName = desktopApp?.get_display_name() || appInfo?.tooltip || client?.class
+    if (appName && !sections[0].title) sections[0].title = appName
 
     if (windowItems.length > 0) {
         const existingLabels = sections.flatMap(s => s.items || []).map(i => (i.label ?? "").toLowerCase())

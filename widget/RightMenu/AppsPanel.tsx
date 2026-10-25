@@ -1,4 +1,4 @@
-import { Gtk } from "ags/gtk4"
+import { Gtk, Gdk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import Hyprland from "../../lib/hyprland"
 import Apps from "../../lib/apps"
@@ -7,11 +7,22 @@ import pins from "../../lib/pins"
 
 declare const imports: any
 
-const { Gio, GLib } = imports.gi
+const { Gio, GLib, GObject } = imports.gi
 const ByteArray = imports.byteArray
 
 const hyprland = Hyprland.get_default()
 const apps = new Apps()
+// Referencia a nivel de módulo: si se recolecta, deja de emitir "changed"
+const appInfoMonitor = Gio.AppInfoMonitor.get()
+
+// Panel de apps a toda la altura del RightMenu (RightMenu oculta lo de arriba)
+const appsExpandedSubs: ((v: boolean) => void)[] = []
+let appsExpandedValue = false
+export const appsExpanded = {
+    get: () => appsExpandedValue,
+    set: (v: boolean) => { appsExpandedValue = v; appsExpandedSubs.forEach(fn => fn(v)) },
+    subscribe: (fn: (v: boolean) => void) => { appsExpandedSubs.push(fn) },
+}
 
 function launchDetached(command: string) {
     const { Gio } = imports.gi;
@@ -40,6 +51,10 @@ function createContextMenu(widget: Gtk.Widget, appInfo: any) {
     const sections: MenuSection[] = []
     const appId = appInfo.get_id ? appInfo.get_id() : ""
     const desktopAppInfo = tryGetAppInfo(appId)
+    const appName = desktopAppInfo?.get_display_name()
+        || (appInfo.get_display_name && appInfo.get_display_name())
+        || (appInfo.get_name && appInfo.get_name())
+        || appId
 
     // 1. Desktop Actions (Jump Lists)
     if (desktopAppInfo) {
@@ -47,7 +62,7 @@ function createContextMenu(widget: Gtk.Widget, appInfo: any) {
         const actions = desktopAppInfo.list_actions ? desktopAppInfo.list_actions() : []
         if (actions.length > 0) {
             sections.push({
-                title: desktopAppInfo.get_display_name(),
+                title: appName,
                 items: actions.map((name: any) => ({
                     label: (desktopAppInfo as any).get_action_name(name) || name,
                     icon: "system-run-symbolic",
@@ -120,12 +135,16 @@ function createContextMenu(widget: Gtk.Widget, appInfo: any) {
 
     sections.push({ items: windowItems })
 
+    // El nombre de la app va siempre arriba, tenga o no acciones propias
+    if (!sections[0].title) sections[0].title = appName
+
     return MenuPopover(widget, sections, Gtk.PositionType.LEFT)
 }
 
 export default function AppsPanel() {
-    const allInstalledApps: any[] = (Gio.AppInfo.get_all() || [])
+    const loadInstalledApps = (): any[] => (Gio.AppInfo.get_all() || [])
         .filter((a: any) => a && a.should_show && a.should_show())
+    let allInstalledApps = loadInstalledApps()
 
     const findById = (id: string) => allInstalledApps.find((a: any) => a.get_id && a.get_id() === id)
 
@@ -152,6 +171,9 @@ export default function AppsPanel() {
         maxChildrenPerLine: 4,
         hexpand: true,
         vexpand: false,
+        // Arriba y con altura natural: con pocas apps las filas no se estiran
+        // para llenar los 225px, queda espacio libre debajo
+        valign: Gtk.Align.START,
         cssClasses: ["apps-grid", ...extraClasses],
     })
     const createAppTile = (appInfo: any, cssClasses: string[] = ["app-tile"]) => {
@@ -199,6 +221,35 @@ export default function AppsPanel() {
         return btn
     }
 
+    // Arrastrar una anclada sobre otra la pone en su lugar
+    const makeReorderable = (btn: Gtk.Button, pinId: string) => {
+        const source = new Gtk.DragSource({ actions: Gdk.DragAction.MOVE })
+        source.connect("prepare", () => Gdk.ContentProvider.new_for_value(pinId))
+        source.connect("drag-begin", () => {
+            source.set_icon(Gtk.WidgetPaintable.new(btn), 0, 0)
+            btn.add_css_class("dragging")
+        })
+        source.connect("drag-end", () => btn.remove_css_class("dragging"))
+        btn.add_controller(source)
+
+        const target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
+        target.connect("enter", () => {
+            btn.add_css_class("drop-target")
+            return Gdk.DragAction.MOVE
+        })
+        target.connect("leave", () => btn.remove_css_class("drop-target"))
+        target.connect("drop", (_t: any, value: string) => {
+            btn.remove_css_class("drop-target")
+            // Se difiere: menu-changed reconstruye la grilla y destruiría este botón en pleno drop
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                pins.moveMenu(value, pinId)
+                return false
+            })
+            return true
+        })
+        btn.add_controller(target)
+    }
+
     const root = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,
         spacing: 8,
@@ -233,16 +284,17 @@ export default function AppsPanel() {
     scrolled.set_max_content_height(225)
     scrolled.set_propagate_natural_height(true)
 
-    const pinnedSection = new Gtk.Box({
-        orientation: Gtk.Orientation.VERTICAL,
-        spacing: 8,
+    // Misma altura fija que los resultados: con muchas ancladas se hace scroll
+    // en vez de crecer y empujar el buscador y los botones fuera de la pantalla
+    const pinnedSection = new Gtk.ScrolledWindow({
+        hexpand: true,
+        vexpand: false,
         cssClasses: ["pinned-section"],
     })
-    pinnedSection.append(new Gtk.Label({
-        halign: Gtk.Align.START,
-        cssClasses: ["apps-section-title"],
-    }))
-    pinnedSection.append(pinnedFlow)
+    pinnedSection.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    pinnedSection.set_child(pinnedFlow)
+    pinnedSection.set_min_content_height(225)
+    pinnedSection.set_max_content_height(225)
 
     const updatePinned = () => {
         while (pinnedFlow.get_first_child()) {
@@ -252,9 +304,14 @@ export default function AppsPanel() {
         const currentPins = pins.getMenu()
         currentPins.forEach(id => {
             const app = findById(id)
-            if (app) pinnedFlow.insert(createAppTile(app, ["app-tile", "pinned-tile"]), -1)
+            if (!app) return
+            const tile = createAppTile(app, ["app-tile", "pinned-tile"])
+            makeReorderable(tile, id)
+            pinnedFlow.insert(tile, -1)
         })
-        pinnedSection.visible = currentPins.length > 0
+        // Si se ancló desde la búsqueda o desde "todas las apps", esa vista
+        // sigue abierta: las ancladas solo se muestran cuando no hay otra
+        pinnedSection.visible = currentPins.length > 0 && !scrolled.visible && !noResultsLabel.visible
     }
 
     pins.connect("menu-changed", updatePinned)
@@ -262,10 +319,29 @@ export default function AppsPanel() {
 
     let firstHighlightedApp: any = null
 
+    const sortApps = () => [...allInstalledApps].sort((a: any, b: any) =>
+        getDisplayName(a).localeCompare(getDisplayName(b)))
+    let sortedApps = sortApps()
+
+    const showAll = () => {
+        while (flow.get_first_child()) flow.remove(flow.get_first_child()!)
+        firstHighlightedApp = null
+        sortedApps.forEach((a) => flow.append(createAppTile(a)))
+        scrolled.visible = true
+        noResultsLabel.visible = false
+        pinnedSection.visible = false
+    }
+
     const render = () => {
         const q = searchEntry.get_text().trim().toLowerCase()
         while (flow.get_first_child()) flow.remove(flow.get_first_child()!)
         firstHighlightedApp = null
+
+        // Expandido y sin búsqueda: todas las apps en vez de las ancladas
+        if (q.length === 0 && appsExpanded.get()) {
+            showAll()
+            return
+        }
 
         if (q.length === 0) {
             scrolled.visible = false
@@ -320,26 +396,43 @@ export default function AppsPanel() {
         child: new Gtk.Image({ iconName: "view-grid-symbolic" })
     })
 
-    let isShowingAll = false
-    menuButton.connect("clicked", () => {
-        if (isShowingAll) {
-            isShowingAll = false
-            searchEntry.set_text("")
-            render()
-        } else {
-            isShowingAll = true
-            while (flow.get_first_child()) flow.remove(flow.get_first_child()!)
-            allInstalledApps.slice(0, 60).forEach((a) => flow.append(createAppTile(a)))
-            scrolled.visible = true
-            pinnedSection.visible = false
-        }
-    })
+    // Ver todas las apps expande el panel a todo el RightMenu; otro clic lo contrae
+    menuButton.connect("clicked", () => appsExpanded.set(!appsExpanded.get()))
     searchBox.append(menuButton)
+
+    // Expandido: las vistas dejan la altura fija de 225px y llenan el panel
+    appsExpanded.subscribe(expanded => {
+        if (expanded) menuButton.add_css_class("active")
+        else menuButton.remove_css_class("active")
+        root.vexpand = expanded
+        for (const view of [scrolled, pinnedSection]) {
+            view.vexpand = expanded
+            view.set_max_content_height(expanded ? -1 : 225)
+        }
+        noResultsLabel.vexpand = expanded
+        searchEntry.set_text("")
+        render()
+    })
 
     root.append(pinnedSection)
     root.append(noResultsLabel)
     root.append(scrolled)
     root.append(searchBox)
+
+    // Al instalar o desinstalar apps cambian los .desktop: se recarga la lista
+    // sin reiniciar AGS. Llega en ráfagas, así que se agrupa con un retardo corto
+    let reloadId = 0
+    appInfoMonitor.connect("changed", () => {
+        if (reloadId) GLib.source_remove(reloadId)
+        reloadId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+            reloadId = 0
+            allInstalledApps = loadInstalledApps()
+            sortedApps = sortApps()
+            updatePinned()
+            render()
+            return false
+        })
+    })
 
     render()
 
