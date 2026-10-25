@@ -35,3 +35,6 @@ yarn-error.log*
 # System
 .DS_Store
 Thumbs.db
+
+# Generado por shiro-theme con el tema elegido en ESTA máquina: no va en git para que cada PC/laptop tenga su tema sin bloquear el git pull.
+/styles/colors.scss
