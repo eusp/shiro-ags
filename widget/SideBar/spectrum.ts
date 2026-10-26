@@ -17,12 +17,16 @@ const WINDOW = 4096
 // Muestras nuevas por cuadro: ~40 cuadros por segundo.
 export const HOP = 1102
 
-// Simétrico (en escala log) alrededor de ~630 Hz, el centro de la voz
-// (de ~100 Hz a ~4 kHz): la voz queda en las líneas del medio.
-const MIN_FREQ = 40
+// Anclado en la música en general, no en una voz (cada voz cae distinto:
+// grave o aguda, con aire o con distorsión): la energía de casi cualquier
+// mezcla se concentra entre ~100 Hz y 1 kHz, y el medio de este rango
+// (~775 Hz, en escala log) queda ahí. Por debajo de 60 Hz casi no hay nada
+// y esas líneas quedaban apagadas.
+const MIN_FREQ = 60
 const MAX_FREQ = 10000
-// La música pierde energía hacia los agudos (~3 dB por octava): se compensa.
-const TILT_DB_PER_OCTAVE = 3
+// La música pierde energía hacia los agudos: se compensa un poco (con 3 la
+// energía se iba hacia arriba).
+const TILT_DB_PER_OCTAVE = 2
 // Rango que va de vacío a lleno, por debajo del pico reciente.
 const RANGE_DB = 42
 // Qué tan rápido baja la ganancia automática cuando la música baja (dB/cuadro).
