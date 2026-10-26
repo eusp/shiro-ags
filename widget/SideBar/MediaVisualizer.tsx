@@ -11,7 +11,14 @@ const mpris = Mpris.get_default()
 // === DISEÑO ===
 const WIDTH = 30
 // Cada segmento es una línea con 3,5 px de paso (1,5 px de línea + aire).
+// Si la barra lateral no tiene tanto alto (pantalla de 768 px de la laptop),
+// las líneas se juntan hasta MIN_PITCH en vez de empujar los controles de
+// reproducción fuera de la pantalla.
 const PITCH = 3.5
+const MIN_PITCH = 1.5
+// Con menos alto que esto no se lee: no se dibuja y el espacio queda para el
+// resto de la barra (por eso el lienzo pide solo 1 px).
+const MIN_VISIBLE_HEIGHT = 90
 const LINE = 1.5
 const MIN_HALF = 1 // media longitud en reposo
 // Opacidad según el nivel: casi invisible en reposo, plena en un pico. La
@@ -40,7 +47,6 @@ export function MediaVisualizer() {
             orientation={Gtk.Orientation.VERTICAL}
             cssClasses={["media-visualizer"]}
             halign={Gtk.Align.CENTER}
-            valign={Gtk.Align.END}
             vexpand
         />
     ) as Gtk.Box
@@ -51,18 +57,27 @@ export function MediaVisualizer() {
     const canvas = new Gtk.DrawingArea({
         cssClasses: ["vis-noise-line"],
         contentWidth: WIDTH,
-        contentHeight: SEGMENT_COUNT * PITCH,
+        // Pide lo mínimo y se estira con el espacio que sobre.
+        contentHeight: 1,
         halign: Gtk.Align.START,
-        valign: Gtk.Align.END,
+        vexpand: true,
     })
-    canvas.set_draw_func((_area: Gtk.DrawingArea, cr: any) => {
+    canvas.set_draw_func((_area: Gtk.DrawingArea, cr: any, _w: number, height: number) => {
+        // Oculto si no hay espacio o si no suena nada (no hay captura).
+        if (height < MIN_VISIBLE_HEIGHT || !device) {
+            cr.$dispose()
+            return
+        }
         const c = canvas.get_color()
         const mid = WIDTH / 2
-        cr.setLineWidth(LINE)
+        const pitch = Math.max(MIN_PITCH, Math.min(PITCH, height / SEGMENT_COUNT))
+        // Pegado abajo, junto a los controles, como antes.
+        const top = height - pitch * SEGMENT_COUNT
+        cr.setLineWidth(Math.min(LINE, pitch * 0.6))
         cr.setLineCap(1) // ROUND
         for (let i = 0; i < SEGMENT_COUNT; i++) {
             const level = analyzer.levels[i]
-            const y = i * PITCH + PITCH / 2
+            const y = top + i * pitch + pitch / 2
             const half = MIN_HALF + level * (mid - MIN_HALF - 1)
             cr.setSourceRGBA(c.red, c.green, c.blue, c.alpha * (ALPHA_IDLE + (ALPHA_FULL - ALPHA_IDLE) * Math.pow(level, ALPHA_CURVE)))
             cr.moveTo(mid - half, y)

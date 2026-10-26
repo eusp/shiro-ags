@@ -30,15 +30,6 @@ window.SideBar {
   }
 
   .media-controls {
-    .media-title {
-      font-family: $font-mono;
-      font-size: 1px;
-      color: theme-alpha(accent0, 0.75);
-      transform: rotate(90deg) scale(12);
-      transform-origin: center center;
-      margin-right: 5px;
-    }
-
     button {
       @include button-reset;
       color: theme-alpha(subtext0, 0.6);
@@ -51,6 +42,85 @@ window.SideBar {
 
       image {
         font-size: 12px;
+      }
+    }
+  }
+}
+
+// Panel de reproducción que sale del play (MediaControls.tsx). Usa el popover
+// compartido con .edge-left, como los menús de clic derecho de las apps; ese
+// estilo baja el panel 27 px para alinearlo con un ícono de app, aquí no.
+popover.media-popover {
+  &.edge-left contents {
+    margin-top: 0;
+  }
+
+  .media-popover-content {
+    padding: 8px;
+  }
+
+  .media-popover-cover {
+    border-radius: $radius-md;
+  }
+
+  .media-popover-cover-fallback {
+    border-radius: $radius-md;
+    background-color: theme-alpha(surface0, 0.8);
+    color: theme-alpha(subtext0, 0.6);
+  }
+
+  .media-popover-title {
+    @include text($text-md, 700);
+    color: var(--text);
+  }
+
+  .media-popover-artist {
+    @include text($text-xs);
+    color: theme-alpha(subtext0, 0.8);
+  }
+
+  .media-popover-progress {
+    margin-top: 6px;
+
+    trough {
+      min-height: 3px;
+      border-radius: 2px;
+      background-color: theme-alpha(overlay0, 0.6);
+    }
+
+    progress {
+      min-height: 3px;
+      border-radius: 2px;
+      background-color: var(--primary-alt);
+    }
+  }
+
+  .media-popover-time {
+    @include text($text-xs, null, $font-mono);
+    color: theme-alpha(subtext0, 0.7);
+  }
+
+  .media-popover-btn {
+    @include button-reset($transition-fast);
+    min-width: 26px;
+    min-height: 26px;
+    border-radius: 13px;
+    color: theme-alpha(text, 0.75);
+
+    &:hover {
+      background-color: theme-alpha(primary, 0.18);
+      color: var(--text);
+    }
+
+    &.media-popover-play {
+      min-width: 32px;
+      min-height: 32px;
+      border-radius: 16px;
+      background-color: theme-alpha(primary-alt, 0.2);
+      color: var(--primary-alt);
+
+      &:hover {
+        background-color: theme-alpha(primary-alt, 0.32);
       }
     }
   }
