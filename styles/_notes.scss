@@ -5,7 +5,8 @@ window.Notes {
   background: transparent;
 
   .notes-container {
-    background-color: theme-alpha(surface0, 0.55);
+    // Casi opaco: con fondos claros el texto no se leía.
+    background-color: theme-alpha(base, 0.94);
     border: 1px solid theme-alpha(primary, 0.25);
     border-radius: $radius-lg;
     box-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
@@ -26,6 +27,76 @@ window.Notes {
     font-weight: 600;
   }
 
+  .notes-header-button {
+    @include button-reset($transition-fast);
+    padding: 1px 5px;
+    border-radius: $radius-xs;
+    color: theme-alpha(text, 0.7);
+
+    &:hover {
+      background-color: theme-alpha(primary, 0.2);
+      color: var(--text);
+    }
+  }
+
+  .notes-done-count {
+    font-size: $text-xs;
+  }
+
+  // Barra de formato bajo el título
+  .notes-toolbar {
+    padding: 3px 6px;
+    border-bottom: 1px solid theme-alpha(primary, 0.12);
+  }
+
+  .notes-format {
+    margin-right: 2px;
+
+    > button {
+      @include button-reset($transition-fast);
+      padding: 1px 6px;
+      border-radius: $radius-xs;
+      font-size: $text-sm;
+      color: theme-alpha(text, 0.8);
+
+      &:hover {
+        background-color: theme-alpha(primary, 0.18);
+      }
+    }
+  }
+
+  // Solo sirve para leer var(--primary) desde format.ts.
+  .notes-accent-probe {
+    color: var(--primary);
+  }
+
+  .notes-toolbar-sep {
+    margin: 3px 4px;
+    min-width: 1px;
+    background-color: theme-alpha(primary-muted, 0.25);
+  }
+
+  .notes-tool {
+    @include button-reset($transition-fast);
+    min-width: 22px;
+    min-height: 22px;
+    border-radius: $radius-xs;
+    color: theme-alpha(text, 0.65);
+
+    &:hover {
+      background-color: theme-alpha(primary, 0.18);
+      color: var(--text);
+    }
+
+    &:active {
+      background-color: theme-alpha(primary, 0.3);
+    }
+  }
+
+  .notes-tool-label {
+    @include text($text-sm, 700, $font-mono);
+  }
+
   .notes-scroll {
     background: transparent;
   }
@@ -33,7 +104,8 @@ window.Notes {
   .notes-textview {
     background: transparent;
     color: var(--text);
-    font-size: $text-md;
+    font-family: $font-ui;
+    font-size: $text-lg;
 
     text {
       background: transparent;

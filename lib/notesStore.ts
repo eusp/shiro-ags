@@ -3,8 +3,18 @@ import { stateFile } from "./localState"
 
 const NOTES_FILE = stateFile("notes.json")
 
-export interface NotesData {
+// Cada línea de la nota con sus líneas indentadas debajo (subnotas).
+export interface NoteNode {
     text: string
+    children?: NoteNode[]
+}
+
+export interface NotesData {
+    notes: NoteNode[]
+    // Formato anterior: toda la nota en un string. Notes.tsx lo convierte a
+    // `notes` al abrir y lo quita al guardar.
+    text?: string
+    showDone: boolean
     marginTop: number
     marginLeft: number
     width: number
@@ -12,7 +22,8 @@ export interface NotesData {
 }
 
 const DEFAULTS: NotesData = {
-    text: "",
+    notes: [],
+    showDone: false,
     marginTop: 80,
     marginLeft: 80,
     width: 260,
