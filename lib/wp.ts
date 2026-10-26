@@ -146,9 +146,24 @@ class Wp extends GObject.Object {
         this._watch()
     }
 
+    // Kept referenced so its stdin pipe stays open (see _watch).
+    private _subscriber: Gio.Subprocess | null = null
+
     private _watch() {
         try {
-            const proc = Gio.Subprocess.new(["pactl", "subscribe"], Gio.SubprocessFlags.STDOUT_PIPE)
+            // `pactl subscribe` outlives the shell if spawned directly: every
+            // restart or crash left one behind (reparented to systemd) until
+            // pipewire-pulse hit its client limit and refused every connection
+            // ("too many client application connections"), breaking volume,
+            // the visualizer and audio routing. The wrapper kills it as soon
+            // as our end of its stdin closes, which the kernel does when the
+            // shell dies for any reason.
+            const proc = Gio.Subprocess.new(
+                // (fd 3: sh gives background jobs /dev/null as stdin.)
+                ["sh", "-c", "exec 3<&0; pactl subscribe 3<&- & p=$!; (cat <&3 >/dev/null; kill $p) >/dev/null & wait $p"],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDIN_PIPE,
+            )
+            this._subscriber = proc
             const stream = new Gio.DataInputStream({ base_stream: proc.get_stdout_pipe()! })
 
             const readLine = () => {
@@ -159,7 +174,17 @@ class Wp extends GObject.Object {
                     } catch (e) {
                         line = null
                     }
-                    if (line === null) return // `pactl subscribe` exited — give up quietly.
+                    if (line === null) {
+                        // `pactl subscribe` exited (e.g. PipeWire restarted): let
+                        // the watcher go and start a new one.
+                        proc.get_stdin_pipe()?.close(null)
+                        this._subscriber = null
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+                            this._watch()
+                            return GLib.SOURCE_REMOVE
+                        })
+                        return
+                    }
 
                     if (/sink|source|server/i.test(line)) {
                         this.defaultSpeaker.refresh()
