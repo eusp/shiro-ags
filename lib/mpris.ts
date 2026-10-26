@@ -8,12 +8,24 @@ import Gio from "gi://Gio?version=2.0"
 
 const PLAYER_OBJECT_PATH = "/org/mpris/MediaPlayer2"
 const PLAYER_IFACE = "org.mpris.MediaPlayer2.Player"
+const POLL_MS = 3000
 const NAME_PREFIX = "org.mpris.MediaPlayer2."
 
 export const PlaybackStatus = { PLAYING: "Playing", PAUSED: "Paused", STOPPED: "Stopped" }
 
+// GET_INVALIDATED_PROPERTIES: Spotify a veces avisa que Metadata cambió sin
+// mandar el valor ("invalidated"), y sin este flag GDBusProxy la borra de la
+// caché y no la vuelve a pedir: el título quedaba vacío.
 function proxy(busName: string): any {
-    return Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, null, busName, PLAYER_OBJECT_PATH, PLAYER_IFACE, null)
+    return Gio.DBusProxy.new_for_bus_sync(
+        Gio.BusType.SESSION,
+        Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
+        null,
+        busName,
+        PLAYER_OBJECT_PATH,
+        PLAYER_IFACE,
+        null,
+    )
 }
 
 class Player extends GObject.Object {
@@ -23,6 +35,8 @@ class Player extends GObject.Object {
                 GTypeName: "ShiroMprisPlayer",
                 Properties: {
                     title: GObject.ParamSpec.jsobject("title", "", "", GObject.ParamFlags.READABLE),
+                    artist: GObject.ParamSpec.jsobject("artist", "", "", GObject.ParamFlags.READABLE),
+                    "art-url": GObject.ParamSpec.jsobject("art-url", "", "", GObject.ParamFlags.READABLE),
                     "playback-status": GObject.ParamSpec.jsobject("playback-status", "", "", GObject.ParamFlags.READABLE),
                 },
             },
@@ -33,6 +47,10 @@ class Player extends GObject.Object {
     busName: string
     private _proxy: any
     private _title = ""
+    private _artist = ""
+    private _artUrl = ""
+    private _length = 0 // µs, 0 si el reproductor no lo dice
+    private _pollId = 0
     private _playbackStatus: string = PlaybackStatus.STOPPED
 
     constructor(busName: string) {
@@ -40,15 +58,92 @@ class Player extends GObject.Object {
         this.busName = busName
         this._proxy = proxy(busName)
         this._proxy.connect("g-properties-changed", () => this._refresh())
+        // Si el reproductor reconecta (cambia el dueño del nombre en D-Bus),
+        // GDBusProxy recarga sus propiedades pero no avisa por
+        // g-properties-changed.
+        this._proxy.connect("notify::g-name-owner", () => this._refresh())
         this._refresh()
+        // Red de seguridad: si igual se pierde un aviso (Spotify recién
+        // abierto quedaba sin título), se corrige leyendo todo cada POLL_MS.
+        this._pollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POLL_MS, () => {
+            this._poll()
+            return GLib.SOURCE_CONTINUE
+        })
+    }
+
+    // Lo llama Mpris cuando el reproductor se cierra.
+    destroy() {
+        if (this._pollId) GLib.source_remove(this._pollId)
+        this._pollId = 0
+    }
+
+    private _poll() {
+        Gio.DBus.session.call(
+            this.busName,
+            PLAYER_OBJECT_PATH,
+            "org.freedesktop.DBus.Properties",
+            "GetAll",
+            new GLib.Variant("(s)", [PLAYER_IFACE]),
+            null,
+            Gio.DBusCallFlags.NONE,
+            1000,
+            null,
+            (_c: any, res: any) => {
+                try {
+                    const [props] = Gio.DBus.session.call_finish(res).recursiveUnpack() as [Record<string, any>]
+                    this._apply(props.Metadata ?? {}, props.PlaybackStatus)
+                } catch {
+                    // El reproductor se cerró o no respondió: lo saca Mpris.
+                }
+            },
+        )
     }
 
     get title() {
         return this._title
     }
 
+    get artist() {
+        return this._artist
+    }
+
+    get artUrl() {
+        return this._artUrl
+    }
+
+    get length() {
+        return this._length
+    }
+
     get playbackStatus() {
         return this._playbackStatus
+    }
+
+    // Position no llega en PropertiesChanged (cambia todo el tiempo): hay
+    // que pedirla. En µs; 0 si el reproductor no la da.
+    position(): Promise<number> {
+        return new Promise((resolve) => {
+            Gio.DBus.session.call(
+                this.busName,
+                PLAYER_OBJECT_PATH,
+                "org.freedesktop.DBus.Properties",
+                "Get",
+                new GLib.Variant("(ss)", [PLAYER_IFACE, "Position"]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                1000,
+                null,
+                (_c: any, res: any) => {
+                    try {
+                        const [variant] = Gio.DBus.session.call_finish(res).deep_unpack() as [GLib.Variant]
+                        const value = variant.deep_unpack()
+                        resolve(Number(value) || 0)
+                    } catch {
+                        resolve(0)
+                    }
+                },
+            )
+        })
     }
 
     play_pause() {
@@ -73,14 +168,34 @@ class Player extends GObject.Object {
 
     private _refresh() {
         const metadataVariant = this._proxy.get_cached_property("Metadata")
-        const metadata = metadataVariant ? metadataVariant.recursiveUnpack() : {}
         const statusVariant = this._proxy.get_cached_property("PlaybackStatus")
+        this._apply(metadataVariant ? metadataVariant.recursiveUnpack() : {}, statusVariant?.deep_unpack())
+    }
 
-        this._title = metadata?.["xesam:title"] || ""
-        this._playbackStatus = statusVariant ? statusVariant.deep_unpack() : PlaybackStatus.STOPPED
+    // Avisa solo lo que cambió (el sondeo corre cada pocos segundos).
+    private _apply(metadata: Record<string, any>, status: string | undefined) {
+        const artist = metadata?.["xesam:artist"]
+        const next = {
+            title: metadata?.["xesam:title"] || "",
+            artist: Array.isArray(artist) ? artist.join(", ") : artist || "",
+            artUrl: metadata?.["mpris:artUrl"] || "",
+            length: Number(metadata?.["mpris:length"]) || 0,
+            status: status || PlaybackStatus.STOPPED,
+        }
+        const changed = (key: string, prev: unknown, value: unknown) => prev !== value && key
+        const notify = [
+            changed("title", this._title, next.title),
+            changed("artist", this._artist, next.artist),
+            changed("art-url", this._artUrl, next.artUrl),
+            changed("playback-status", this._playbackStatus, next.status),
+        ].filter(Boolean) as string[]
 
-        this.notify("title")
-        this.notify("playback-status")
+        this._title = next.title
+        this._artist = next.artist
+        this._artUrl = next.artUrl
+        this._length = next.length
+        this._playbackStatus = next.status
+        for (const prop of notify) this.notify(prop)
     }
 }
 
@@ -152,7 +267,12 @@ class Mpris extends GObject.Object {
                     this._addPlayer(name)
                     this.notify("players")
                 } else if (!newOwner && oldOwner) {
-                    if (this._players.delete(name)) this.notify("players")
+                    const player = this._players.get(name)
+                    if (player) {
+                        player.destroy()
+                        this._players.delete(name)
+                        this.notify("players")
+                    }
                 }
             })
         } catch (e) {
