@@ -27,5 +27,12 @@ window.RightMenu {
     image {
       font-size: 20px;
     }
+
+    // Primer clic de reiniciar/apagar: espera el segundo (PowerActions.tsx).
+    &.armed,
+    &.armed:hover {
+      @include danger-colors;
+      border: 1px solid theme-alpha(danger, 0.45);
+    }
   }
 }
