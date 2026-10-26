@@ -7,10 +7,9 @@ window.SideBar {
     margin-left: 3px;
     min-width: 32px;
 
-    .vis-noise-line .vis-noise-seg {
-      background: theme-alpha(primary-alt, 0.55);
-      min-height: 1px;
-      border-radius: 2px;
+    // DrawingArea de MediaVisualizer.tsx: pinta las líneas con este color.
+    .vis-noise-line {
+      color: var(--primary-alt);
     }
   }
 
