@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Consumo del shell (gjs de AGS + procesos que lanza, como parec).
+#
+#   ags-mem                 una medición
+#   ags-mem log [seg] [csv] una medición cada `seg` segundos (60 por defecto),
+#                           también al CSV si se da; Ctrl+C para parar
+#
+# PSS es la RAM que de verdad le toca al proceso (las bibliotecas compartidas
+# se reparten entre quienes las usan); RSS las cuenta enteras y exagera.
+set -euo pipefail
+
+shell_pid() {
+    pgrep -f "gjs -m /run/user/$(id -u)/ags.js" | head -1
+}
+
+# pss_kb rss_kb de un PID
+mem_of() {
+    awk '/^Pss:/{p=$2} /^Rss:/{r=$2} END{print p+0, r+0}' "/proc/$1/smaps_rollup" 2>/dev/null || echo "0 0"
+}
+
+# Tiempo de CPU acumulado (ticks) del shell y sus hijos
+cpu_ticks() {
+    local total=0 pid
+    for pid in "$@"; do
+        [ -r "/proc/$pid/stat" ] || continue
+        total=$((total + $(awk '{print $14 + $15}' "/proc/$pid/stat")))
+    done
+    echo "$total"
+}
+
+measure() {
+    local pid children pss rss cpss crss line
+    pid="$(shell_pid)" || true
+    [ -n "$pid" ] || { echo "AGS no está corriendo" >&2; return 1; }
+    children="$( (pgrep -P "$pid" || true) | tr "\n" " ")"
+    read -r pss rss < <(mem_of "$pid")
+    cpss=0
+    crss=0
+    for c in $children; do
+        read -r p r < <(mem_of "$c")
+        cpss=$((cpss + p))
+        crss=$((crss + r))
+    done
+    echo "$pid" "$pss" "$rss" "$cpss" "$crss" "$children"
+}
+
+mb() { awk -v k="$1" 'BEGIN{printf "%.0f", k/1024}'; }
+
+case "${1:-}" in
+    "")
+        read -r pid pss rss cpss crss children < <(measure)
+        hz=$(getconf CLK_TCK)
+        t0=$(cpu_ticks "$pid" $children)
+        sleep 5
+        t1=$(cpu_ticks "$pid" $children)
+        cpu=$(awk -v d=$((t1 - t0)) -v hz="$hz" 'BEGIN{printf "%.1f", d / hz / 5 * 100}')
+        echo "AGS (pid $pid)"
+        echo "  shell:   PSS $(mb "$pss") MB   (RSS $(mb "$rss") MB)"
+        [ -n "$children" ] && for c in $children; do
+            read -r p r < <(mem_of "$c")
+            echo "  hijo:    PSS $(mb "$p") MB   $(tr '\0' ' ' < "/proc/$c/cmdline" | cut -c1-60)"
+        done
+        echo "  total:   PSS $(mb $((pss + cpss))) MB"
+        echo "  CPU:     ${cpu}% de un núcleo (promedio de 5 s)"
+        echo "  vivo hace: $(ps -o etime= -p "$pid" | tr -d ' ')"
+        ;;
+    log)
+        every="${2:-60}"
+        csv="${3:-}"
+        hz=$(getconf CLK_TCK)
+        [ -n "$csv" ] && [ ! -s "$csv" ] && echo "hora,pss_mb,rss_mb,hijos_pss_mb,cpu_pct" > "$csv"
+        read -r pid _ _ _ _ children < <(measure)
+        prev=$(cpu_ticks "$pid" $children)
+        while true; do
+            sleep "$every"
+            read -r pid pss rss cpss crss children < <(measure) || continue
+            now=$(cpu_ticks "$pid" $children)
+            cpu=$(awk -v d=$((now - prev)) -v hz="$hz" -v s="$every" 'BEGIN{d = d < 0 ? 0 : d; printf "%.1f", d / hz / s * 100}')
+            prev=$now
+            row="$(date +%H:%M:%S),$(mb "$pss"),$(mb "$rss"),$(mb "$cpss"),$cpu"
+            echo "$row"
+            [ -n "$csv" ] && echo "$row" >> "$csv"
+        done
+        ;;
+    *)
+        sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+esac
