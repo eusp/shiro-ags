@@ -201,20 +201,34 @@ export function MediaControls() {
 
     const panel = MediaPopover(playBtn)
     let player: any = null
-    let playerSignals: number[] = []
+    // Se escucha a todos los reproductores (no solo al elegido): si empieza a
+    // sonar otro, el control se pasa a ese.
+    const watched = new Set<any>()
 
     const hasMedia = () => !!player && !!player.title && player.playbackStatus !== Mpris.PlaybackStatus.STOPPED
 
+    // El que está sonando; si ninguno, uno con canción; si no, el primero.
+    const pick = () => {
+        const all = mpris.players
+        return (
+            all.find((p: any) => p.playbackStatus === Mpris.PlaybackStatus.PLAYING) ??
+            all.find((p: any) => p.title && p.playbackStatus !== Mpris.PlaybackStatus.STOPPED) ??
+            all[0] ??
+            null
+        )
+    }
+
     const update = () => {
-        const next = mpris.players[0] ?? null
+        for (const p of mpris.players) {
+            if (watched.has(p)) continue
+            watched.add(p)
+            for (const sig of ["notify::playback-status", "notify::title", "notify::artist", "notify::art-url"]) p.connect(sig, update)
+        }
+        for (const p of watched) if (!mpris.players.includes(p)) watched.delete(p)
+
+        const next = pick()
         if (next !== player) {
-            for (const id of playerSignals) player?.disconnect(id)
             player = next
-            playerSignals = player
-                ? ["notify::playback-status", "notify::title", "notify::artist", "notify::art-url"].map((sig) =>
-                      player.connect(sig, update),
-                  )
-                : []
             panel.setPlayer(player)
         }
 

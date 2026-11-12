@@ -220,6 +220,7 @@ class Mpris extends GObject.Object {
     }
 
     private _players = new Map<string, InstanceType<typeof Player>>()
+    private _nameSub = 0
 
     constructor() {
         super()
@@ -242,39 +243,46 @@ class Mpris extends GObject.Object {
 
     private _connect() {
         try {
-            const dbusProxy = Gio.DBusProxy.new_for_bus_sync(
-                Gio.BusType.SESSION,
-                Gio.DBusProxyFlags.NONE,
+            // Suscripción directa en la conexión (no un proxy en una variable
+            // local): GJS recolectaba ese proxy al rato y NameOwnerChanged
+            // dejaba de llegar, así que un Spotify abierto después de AGS
+            // no aparecía hasta reiniciar el shell.
+            this._nameSub = Gio.DBus.session.signal_subscribe(
+                "org.freedesktop.DBus",
+                "org.freedesktop.DBus",
+                "NameOwnerChanged",
+                "/org/freedesktop/DBus",
                 null,
+                Gio.DBusSignalFlags.NONE,
+                (_c, _sender, _path, _iface, _signal, params) => {
+                    const [name, oldOwner, newOwner] = params.deep_unpack() as [string, string, string]
+                    if (!name.startsWith(NAME_PREFIX)) return
+                    const old = this._players.get(name)
+                    if (old && oldOwner) {
+                        old.destroy()
+                        this._players.delete(name)
+                    }
+                    if (newOwner) this._addPlayer(name)
+                    this.notify("players")
+                },
+            )
+
+            const result = Gio.DBus.session.call_sync(
                 "org.freedesktop.DBus",
                 "/org/freedesktop/DBus",
                 "org.freedesktop.DBus",
+                "ListNames",
+                null,
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
                 null,
             )
-
-            const result = dbusProxy.call_sync("ListNames", null, Gio.DBusCallFlags.NONE, -1, null)
             const [names] = (result as any).deep_unpack() as [string[]]
             for (const name of names) {
                 if (name.startsWith(NAME_PREFIX)) this._addPlayer(name)
             }
             this.notify("players")
-
-            dbusProxy.connect("g-signal", (_p: any, _sender: string, signal: string, params: any) => {
-                if (signal !== "NameOwnerChanged") return
-                const [name, oldOwner, newOwner] = params.deep_unpack() as [string, string, string]
-                if (!name.startsWith(NAME_PREFIX)) return
-                if (newOwner && !oldOwner) {
-                    this._addPlayer(name)
-                    this.notify("players")
-                } else if (!newOwner && oldOwner) {
-                    const player = this._players.get(name)
-                    if (player) {
-                        player.destroy()
-                        this._players.delete(name)
-                        this.notify("players")
-                    }
-                }
-            })
         } catch (e) {
             logError(e as Error, "mpris: could not connect to session bus")
         }
