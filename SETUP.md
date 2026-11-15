@@ -56,6 +56,7 @@ sudo ln -sfn ~/.config/shiro-ags/scripts/ags /usr/local/bin/ags
 - **Hostnames**: `scripts/audio-route.sh` busca `CachyOS-PC` / `CachyOS-Laptop`. Si cambias el nombre de los
   equipos, edita `PC_HOST`/`LT_HOST` (y las direcciones `.local`) al principio del script.
 - **Brillo**: `sudo usermod -aG video $USER` en el laptop.
+- **UPS (solo la PC)**: el indicador del UPS necesita NUT configurado. Ver [UPS.md](UPS.md).
 
 ---
 
