@@ -10,6 +10,7 @@ import Microphone from "./TopBar/Microphone"
 import BluetoothIndicator from "./TopBar/Bluetooth"
 import NetworkIndicator from "./TopBar/Network"
 import BatteryIndicator from "./TopBar/Battery"
+import UpsIndicator from "./TopBar/Ups"
 import SysTray from "./TopBar/SysTray"
 import RightMenuToggle from "./TopBar/RightMenuToggle"
 import KeyboardLayout from "./TopBar/KeyboardLayout"
@@ -51,6 +52,7 @@ export default function TopBar(gdkmonitor: Gdk.Monitor) {
           <NetworkIndicator />
           <SysTray />
           <BatteryIndicator />
+          <UpsIndicator />
         </box>
       </box>
     </Astal.Window>
