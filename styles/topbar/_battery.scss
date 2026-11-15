@@ -1,6 +1,10 @@
 @use "../abstracts" as *;
 
-// Batería: con cargador conectado (funcionando con corriente) toma el color del tema
-window.TopBar .battery.on-ac {
-  color: var(--primary);
+// Batería: el color dice de dónde sale la energía y cuánta queda.
+// Con batería y nivel normal queda en el color de texto de la barra.
+window.TopBar .battery {
+  &.charging { color: var(--success); } // con corriente, cargando
+  &.on-ac    { color: var(--info); }    // con corriente, sin cargar (pausa / llena)
+  &.low      { color: var(--warning); } // con batería, 20% o menos
+  &.critical { color: var(--danger); }  // con batería, 10% o menos
 }

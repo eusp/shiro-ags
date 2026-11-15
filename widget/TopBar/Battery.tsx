@@ -30,8 +30,15 @@ export default function BatteryIndicator() {
         const onAc = ON_AC.includes(battery.state)
         icon.iconName = battery.isPresent ? iconFor(pct, charging) : "battery-missing-symbolic"
         label.label = battery.isPresent ? `${pct}%` : ""
-        if (onAc) box.add_css_class("on-ac")
-        else box.remove_css_class("on-ac")
+        // Una sola clase de color a la vez (ver styles/topbar/_battery.scss)
+        const cls = charging ? "charging"
+            : onAc ? "on-ac"
+            : pct <= 10 ? "critical"
+            : pct <= 20 ? "low"
+            : ""
+        for (const c of ["charging", "on-ac", "critical", "low"])
+            if (c !== cls) box.remove_css_class(c)
+        if (cls) box.add_css_class(cls)
         box.tooltipText = charging ? "Con corriente, cargando"
             : onAc ? "Con corriente, sin cargar"
             : "Con batería"
