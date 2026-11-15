@@ -1,5 +1,6 @@
-import { Gtk } from "ags/gtk4"
+import { Gtk, Gdk } from "ags/gtk4"
 import Battery, { BatteryState } from "../../lib/battery"
+import { activeProfile, cycleProfile, onProfileChanged, setProfile, PROFILE_LABEL } from "../../lib/power-profiles"
 
 const battery = Battery.get_default()
 
@@ -20,8 +21,23 @@ export default function BatteryIndicator() {
     const icon = new Gtk.Image()
     const label = new Gtk.Label()
 
+    // Ícono del perfil de energía solo en ahorro o rendimiento;
+    // en balanceado no se muestra nada para no recargar la barra
+    const profileIcon = new Gtk.Image({ cssClasses: ["battery-profile"] })
+
     box.append(icon)
     box.append(label)
+    box.append(profileIcon)
+
+    // Clic: cambiar de perfil (Ahorro → Balanceado → Rendimiento)
+    const click = new Gtk.GestureClick()
+    click.connect("released", () => cycleProfile())
+    box.add_controller(click)
+    box.cursor = Gdk.Cursor.new_from_name("pointer", null)
+
+    // Automático: al desconectar el cargador pasa a ahorro y al conectarlo
+    // vuelve a balanceado. Solo en el cambio, así se respeta lo que elijas a mano.
+    let wasOnAc: boolean | null = null
 
     const update = () => {
         box.visible = battery.isPresent
@@ -39,14 +55,28 @@ export default function BatteryIndicator() {
         for (const c of ["charging", "on-ac", "critical", "low"])
             if (c !== cls) box.remove_css_class(c)
         if (cls) box.add_css_class(cls)
-        box.tooltipText = charging ? "Con corriente, cargando"
+
+        // UNKNOWN aparece de paso al reconectar UPower: no cuenta como cambio
+        const known = battery.isPresent && battery.state !== BatteryState.UNKNOWN
+        if (known && wasOnAc !== null && onAc !== wasOnAc)
+            setProfile(onAc ? "balanced" : "power-saver")
+        if (known) wasOnAc = onAc
+
+        const profile = activeProfile()
+        profileIcon.visible = profile === "power-saver" || profile === "performance"
+        if (profileIcon.visible) profileIcon.iconName = `power-profile-${profile}-symbolic`
+        const source = charging ? "Con corriente, cargando"
             : onAc ? "Con corriente, sin cargar"
             : "Con batería"
+        box.tooltipText = profile
+            ? `${source}\nPerfil: ${PROFILE_LABEL[profile] ?? profile} (clic para cambiar)`
+            : source
     }
 
     battery.connect("notify::percentage", update)
     battery.connect("notify::state", update)
     battery.connect("notify::is-present", update)
+    onProfileChanged(update)
     box.connect("map", update)
 
     return box
