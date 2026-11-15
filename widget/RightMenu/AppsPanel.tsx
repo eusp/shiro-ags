@@ -5,6 +5,9 @@ import Apps from "../../lib/apps"
 import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
 import pins from "../../lib/pins"
 
+// Altura del panel de apps sin expandir (~4 filas)
+const APPS_HEIGHT = 375
+
 declare const imports: any
 
 const { Gio, GLib, GObject } = imports.gi
@@ -280,8 +283,8 @@ export default function AppsPanel() {
     })
     scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     scrolled.set_child(flow)
-    scrolled.set_min_content_height(225)
-    scrolled.set_max_content_height(225)
+    scrolled.set_min_content_height(APPS_HEIGHT)
+    scrolled.set_max_content_height(APPS_HEIGHT)
     scrolled.set_propagate_natural_height(true)
 
     // Misma altura fija que los resultados: con muchas ancladas se hace scroll
@@ -293,8 +296,8 @@ export default function AppsPanel() {
     })
     pinnedSection.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     pinnedSection.set_child(pinnedFlow)
-    pinnedSection.set_min_content_height(225)
-    pinnedSection.set_max_content_height(225)
+    pinnedSection.set_min_content_height(APPS_HEIGHT)
+    pinnedSection.set_max_content_height(APPS_HEIGHT)
 
     const updatePinned = () => {
         while (pinnedFlow.get_first_child()) {
@@ -407,7 +410,7 @@ export default function AppsPanel() {
         root.vexpand = expanded
         for (const view of [scrolled, pinnedSection]) {
             view.vexpand = expanded
-            view.set_max_content_height(expanded ? -1 : 225)
+            view.set_max_content_height(expanded ? -1 : APPS_HEIGHT)
         }
         noResultsLabel.vexpand = expanded
         searchEntry.set_text("")

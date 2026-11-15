@@ -1,11 +1,9 @@
 import { Gtk } from "ags/gtk4"
 import ClockWeather from "./ClockWeather"
-import InternetToggle from "./InternetToggle"
-import BluetoothToggle from "./BluetoothToggle"
-import SoundControl from "./SoundControl"
-import MicrophoneControl from "./MicrophoneControl"
 import BrightnessControl from "./BrightnessControl"
 
+// Red, Bluetooth, volumen y micrófono se manejan desde la topbar.
+// El brillo solo aparece si hay pantalla con backlight (laptop).
 export function QuickSettingsList() {
     return (
         <box
@@ -13,10 +11,6 @@ export function QuickSettingsList() {
             cssClasses={["quick-settings-list"]}
             spacing={4}
         >
-            <InternetToggle />
-            <BluetoothToggle />
-            <SoundControl />
-            <MicrophoneControl />
             <BrightnessControl />
         </box>
     )
