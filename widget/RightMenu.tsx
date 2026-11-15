@@ -40,6 +40,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
         </box>
     ) as Gtk.Box
     const themeSelector = <ThemeSelector /> as Gtk.Widget
+    themeSelector.marginBottom = 12
     const appsPanelZone = (
         <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["apps-panel-zone"]}>
             {appsPanel}
@@ -54,6 +55,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
             vexpand={true}
             valign={Gtk.Align.END}
         >
+            {themeSelector}
             {appsPanelZone}
             <box
                 orientation={Gtk.Orientation.HORIZONTAL}
@@ -114,9 +116,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
                 {/* Clock siempre visible */}
                 {topZone}
 
-                {themeSelector}
-
-                {/* Apps + Power */}
+                {/* Tema + Apps + Power */}
                 {bottomZone}
             </box>
         </Astal.Window>

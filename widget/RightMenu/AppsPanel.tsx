@@ -5,8 +5,8 @@ import Apps from "../../lib/apps"
 import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
 import pins from "../../lib/pins"
 
-// Altura del panel de apps sin expandir (~4 filas)
-const APPS_HEIGHT = 375
+// Altura del panel de apps sin expandir (~2 filas)
+const APPS_HEIGHT = 225
 
 declare const imports: any
 
