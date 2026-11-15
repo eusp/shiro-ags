@@ -1,6 +1,6 @@
 @use "../abstracts" as *;
 
-// Batería: con cargador conectado se tiñe de acento y aparece un enchufe
+// Batería: con cargador conectado (funcionando con corriente) toma el color del tema
 window.TopBar .battery.on-ac {
   color: var(--primary);
 }
