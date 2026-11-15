@@ -1,0 +1,6 @@
+@use "../abstracts" as *;
+
+// Batería: con cargador conectado se tiñe de acento y aparece un enchufe
+window.TopBar .battery.on-ac {
+  color: var(--accent0);
+}
