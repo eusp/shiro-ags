@@ -1,4 +1,6 @@
 import { Gtk } from "ags/gtk4"
+import Gio from "gi://Gio?version=2.0"
+import GLib from "gi://GLib?version=2.0"
 import Battery, { BatteryState } from "../../lib/battery"
 
 const battery = Battery.get_default()
@@ -11,7 +13,11 @@ export default function BatteryIndicator() {
     const box = new Gtk.Box({ spacing: 4, cssClasses: ["battery"] })
     const icon = new Gtk.Image()
     const label = new Gtk.Label()
-    const plug = new Gtk.Image({ iconName: "ac-adapter-symbolic", cssClasses: ["battery-plug"] })
+    // Ícono propio: en Papirus "ac-adapter" es otra batería con rayo y se confunde
+    const plug = new Gtk.Image({
+        gicon: Gio.FileIcon.new(Gio.File.new_for_path(`${GLib.get_home_dir()}/.config/ags/icons/plug-symbolic.svg`)),
+        cssClasses: ["battery-plug"],
+    })
 
     box.append(icon)
     box.append(label)
