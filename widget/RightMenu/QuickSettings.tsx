@@ -1,6 +1,7 @@
 import { Gtk } from "ags/gtk4"
-import ClockWeather from "./ClockWeather"
+import Clock from "./Clock"
 import BrightnessControl from "./BrightnessControl"
+import PerformancePanel from "./PerformancePanel"
 
 // Red, Bluetooth, volumen y micrófono se manejan desde la topbar.
 // El brillo solo aparece si hay pantalla con backlight (laptop).
@@ -12,6 +13,7 @@ export function QuickSettingsList() {
             spacing={4}
         >
             <BrightnessControl />
+            <PerformancePanel />
         </box>
     )
 }
@@ -23,7 +25,7 @@ export default function QuickSettings() {
             cssClasses={["quick-settings"]}
             spacing={16}
         >
-            <ClockWeather />
+            <Clock />
             <QuickSettingsList />
         </box>
     )

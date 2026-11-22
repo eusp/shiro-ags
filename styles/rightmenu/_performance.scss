@@ -1,0 +1,114 @@
+@use "../abstracts" as *;
+
+// Panel "Rendimiento" del menú derecho (PerformancePanel.tsx)
+// Mismo lenguaje que el selector de temas: sección transparente con líneas
+// finas arriba y abajo, y encabezado tipo "Tema ··· valor ›".
+window.RightMenu .perf-panel {
+  border-top: 1px solid theme-alpha(primary-muted, 0.5);
+  border-bottom: 1px solid theme-alpha(primary-muted, 0.5);
+  border-radius: $radius-lg;
+
+  .perf-toggle {
+    @include button-reset;
+    padding: 5px 20px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.8);
+
+    &:hover {
+      color: var(--accent0);
+      background: theme-alpha(overlay0, 0.7);
+    }
+
+    &.expanded {
+      color: var(--accent0);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+
+      .perf-arrow {
+        color: var(--primary);
+      }
+    }
+  }
+
+  .perf-title {
+    @include text($text-sm, 500);
+  }
+
+  .perf-temps {
+    @include text($text-xs, $family: $font-mono);
+    color: var(--primary);
+
+    &.warn { color: var(--warning); }
+    &.crit { color: var(--danger); }
+  }
+
+  .perf-warn {
+    @include text($text-xs, 700);
+    color: var(--warning);
+  }
+
+  .perf-arrow {
+    font-size: $text-xs;
+    color: theme-alpha(subtext0, 0.4);
+  }
+
+  // Filas y detalles alineados con el texto del encabezado
+  .perf-body {
+    padding: 4px 20px 10px;
+  }
+
+  .perf-label {
+    @include text($text-xs, 500);
+    color: theme-alpha(subtext0, 0.7);
+  }
+
+  .perf-value {
+    @include text($text-xs, 500, $font-mono);
+    color: var(--text);
+  }
+
+  // La barra se dibuja con su `color`
+  .perf-bar {
+    color: var(--primary);
+
+    &.warn { color: var(--warning); }
+    &.crit { color: var(--danger); }
+  }
+
+  .perf-error {
+    @include text($text-xs);
+    color: var(--warning);
+  }
+
+  // ── Detalles ──
+  .perf-details {
+    margin-top: 2px;
+    padding-top: 10px;
+    padding-right: 8px; // espacio para la barra de scroll flotante
+    border-top: 1px solid theme-alpha(primary-muted, 0.25);
+  }
+
+  .perf-detail-title {
+    @include text($text-xs, 600);
+    color: var(--primary);
+    margin-bottom: 1px;
+
+    &.warn { color: var(--warning); }
+  }
+
+  .perf-detail-key {
+    @include text($text-xs);
+    color: theme-alpha(subtext0, 0.65);
+  }
+
+  .perf-detail-val {
+    @include text($text-xs, 500, $font-mono);
+    color: var(--text);
+  }
+
+  .perf-detail-note {
+    @include text(10px);
+    color: theme-alpha(subtext0, 0.55);
+    margin-top: 2px;
+  }
+}

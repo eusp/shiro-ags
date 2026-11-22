@@ -1,13 +1,17 @@
 import app from "ags/gtk4/app"
 import { Astal, Gtk, Gdk } from "ags/gtk4"
-import ClockWeather from "./RightMenu/ClockWeather"
+import Clock from "./RightMenu/Clock"
 import { QuickSettingsList } from "./RightMenu/QuickSettings"
 import AppsPanel, { appsExpanded } from "./RightMenu/AppsPanel"
 import PowerActions from "./RightMenu/PowerActions"
 import ThemeSelector, { themeExpanded } from "./RightMenu/ThemeSelector"
+import { perfExpanded } from "./RightMenu/PerformancePanel"
 
 declare const imports: any
 const { GLib } = imports.gi
+
+// Ancho fijo del menú (antes lo marcaba la fila de fecha + clima)
+const MENU_WIDTH = 398
 
 let rightMenuWindowRef: Astal.Window | null = null
 let appsPanelRef: any = null
@@ -35,7 +39,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
 
     const topZone = (
         <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["quick-settings"]} spacing={16}>
-            <ClockWeather />
+            <Clock />
             {settingsList}
         </box>
     ) as Gtk.Box
@@ -74,11 +78,17 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
     appsExpanded.subscribe(expanded => {
         // Se fija el ancho actual para que la barra no se estreche al ocultar lo de arriba
         if (expanded && container) container.set_size_request(container.get_width(), -1)
-        else if (container) container.set_size_request(320, -1)
+        else if (container) container.set_size_request(MENU_WIDTH, -1)
         topZone.set_visible(!expanded)
         themeSelector.set_visible(!expanded)
         appsPanelZone.vexpand = expanded
         bottomZone.valign = expanded ? Gtk.Align.FILL : Gtk.Align.END
+    })
+
+    // Detalles de rendimiento abiertos: se ocultan temas y apps para darles espacio
+    perfExpanded.subscribe(expanded => {
+        themeSelector.set_visible(!expanded && !appsExpanded.get())
+        appsPanelZone.set_visible(!expanded)
     })
 
     // Hide only the toggles list when theme selector is open
@@ -111,7 +121,7 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
                 orientation={Gtk.Orientation.VERTICAL}
                 cssClasses={["rightmenu-container"]}
                 spacing={12}
-                widthRequest={320}
+                widthRequest={MENU_WIDTH}
             >
                 {/* Clock siempre visible */}
                 {topZone}

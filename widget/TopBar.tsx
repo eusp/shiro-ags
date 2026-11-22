@@ -4,7 +4,6 @@ import { Astal, Gtk, Gdk } from "ags/gtk4"
 import Workspaces from "./TopBar/Workspaces"
 import Clock from "./TopBar/Clock"
 import Clipboard from "./TopBar/Clipboard"
-import SystemMonitor from "./TopBar/SystemMonitor"
 import Volume from "./TopBar/Volume"
 import Microphone from "./TopBar/Microphone"
 import BluetoothIndicator from "./TopBar/Bluetooth"
@@ -49,7 +48,6 @@ export default function TopBar(gdkmonitor: Gdk.Monitor) {
             <RightMenuToggle />
             <KeyboardLayout />
             <Clipboard />
-            <SystemMonitor />
             <Volume />
             <Microphone />
             <BluetoothIndicator />

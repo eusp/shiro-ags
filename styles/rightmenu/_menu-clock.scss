@@ -1,0 +1,23 @@
+@use "../abstracts" as *;
+
+// Reloj del menú derecho (Clock.tsx)
+window.RightMenu .clock-container {
+  padding: 22px 20px 6px;
+
+  .clock-time {
+    @include text(56px, 800, $font-mono);
+    color: var(--accent0);
+    text-shadow: 0 0 18px theme-alpha(primary, 0.25);
+  }
+
+  // Segundos pequeños, alineados a la base de la hora
+  .clock-seconds {
+    @include text(18px, 600, $font-mono);
+    color: theme-alpha(primary, 0.75);
+  }
+
+  .clock-date {
+    @include text($text-md, 500);
+    color: theme-alpha(subtext0, 0.8);
+  }
+}
