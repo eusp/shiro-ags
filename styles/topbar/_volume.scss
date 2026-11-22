@@ -26,3 +26,9 @@
     }
   }
 }
+
+// Micrófono en uso por alguna app (Microphone.tsx): rojo fijo, como el punto
+// de "grabando", para que se vea con cualquier tema.
+window.TopBar .mic-live image {
+  color: #f87171;
+}
