@@ -29,32 +29,38 @@ export default function TopBar(gdkmonitor: Gdk.Monitor) {
       application={app}
       layer={Astal.Layer.TOP}
     >
-      <box cssClasses={["bar-content"]}>
-        {/* LEFT — Workspaces */}
-        <box cssClasses={["bar-left"]} halign={Gtk.Align.START} hexpand spacing={8}>
-          <Workspaces />
-        </box>
-
-        {/* CENTER — Clock */}
-        <box cssClasses={["bar-center"]} halign={Gtk.Align.CENTER} hexpand>
-          <Clock />
-        </box>
-
-        {/* RIGHT — System icons */}
-        <box cssClasses={['bar-right']} halign={Gtk.Align.END} hexpand spacing={6}>
-          <RightMenuToggle />
-          <KeyboardLayout />
-          <Clipboard />
-          <SystemMonitor />
-          <Volume />
-          <Microphone />
-          <BluetoothIndicator />
-          <NetworkIndicator />
-          <SysTray />
-          <BatteryIndicator />
-          <UpsIndicator />
-        </box>
-      </box>
+      {(() => {
+        // CenterBox: el reloj queda en el centro exacto de la pantalla aunque
+        // los lados cambien de ancho (íconos que aparecen y desaparecen). Con
+        // una box de tres hexpand se corría hacia el lado con menos íconos.
+        const bar = new Gtk.CenterBox({ cssClasses: ["bar-content"] })
+        bar.set_start_widget(
+          <box cssClasses={["bar-left"]} halign={Gtk.Align.START} spacing={8}>
+            <Workspaces />
+          </box> as Gtk.Widget
+        )
+        bar.set_center_widget(
+          <box cssClasses={["bar-center"]}>
+            <Clock />
+          </box> as Gtk.Widget
+        )
+        bar.set_end_widget(
+          <box cssClasses={['bar-right']} halign={Gtk.Align.END} spacing={6}>
+            <RightMenuToggle />
+            <KeyboardLayout />
+            <Clipboard />
+            <SystemMonitor />
+            <Volume />
+            <Microphone />
+            <BluetoothIndicator />
+            <NetworkIndicator />
+            <SysTray />
+            <BatteryIndicator />
+            <UpsIndicator />
+          </box> as Gtk.Widget
+        )
+        return bar
+      })()}
     </Astal.Window>
   )
 }
