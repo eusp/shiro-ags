@@ -19,4 +19,26 @@ window.TopBar {
       color: inherit;
     }
   }
+
+  // Botón del menú derecho: píldora destacada al final de la barra
+  button.rightmenu-toggle {
+    padding: 3px 9px;
+    margin-left: 6px;
+    border-radius: 999px;
+    color: var(--primary);
+    background: theme-alpha(primary, 0.14);
+    box-shadow: inset 0 0 0 1px theme-alpha(primary, 0.35);
+
+    &:hover {
+      color: var(--accent0);
+      background: theme-alpha(primary, 0.28);
+      box-shadow: inset 0 0 0 1px theme-alpha(primary, 0.6);
+    }
+
+    &.open {
+      color: var(--base);
+      background: var(--primary);
+      box-shadow: 0 0 10px theme-alpha(primary, 0.35);
+    }
+  }
 }

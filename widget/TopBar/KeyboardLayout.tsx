@@ -1,11 +1,21 @@
 import { Gtk } from "ags/gtk4"
 import { exec, execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
+import { MenuPopover } from "../Shared/MenuPopover"
 
-const LAYOUTS: Record<string, string> = {
-    us: "EN",
-    es: "ES",
+// Código corto (barra) y nombre (menú) de cada distribución
+const LAYOUTS: Record<string, { code: string; name: string }> = {
+    us: { code: "EN", name: "English (US)" },
+    es: { code: "ES", name: "Español" },
+    latam: { code: "LA", name: "Español (Latinoamérica)" },
+    fr: { code: "FR", name: "Français" },
+    de: { code: "DE", name: "Deutsch" },
+    pt: { code: "PT", name: "Português" },
+    br: { code: "BR", name: "Português (Brasil)" },
+    it: { code: "IT", name: "Italiano" },
+    jp: { code: "JA", name: "日本語" },
 }
+const layoutInfo = (id: string) => LAYOUTS[id] ?? { code: id.toUpperCase(), name: id }
 
 // hyprctl keyword no funciona con el config en Lua de este sistema
 // ("keyword can't work with non-legacy parsers"), así que hay que usar
@@ -34,30 +44,56 @@ function getKeyboardDevice(): string | null {
     return getMainKeyboard()?.name || null
 }
 
-function readActiveLayout(): string {
-    const keymap: string = getMainKeyboard()?.active_keymap || ""
-    return keymap.toLowerCase().includes("spanish") ? "es" : "us"
+// Distribuciones configuradas en Hyprland ("us,es") y cuál está activa
+function readLayouts(): { ids: string[]; active: number } {
+    const kb = getMainKeyboard()
+    const ids = String(kb?.layout || "us").split(",").map((x: string) => x.trim()).filter(Boolean)
+    return { ids, active: kb?.active_layout_index ?? 0 }
 }
 
 export default function KeyboardLayout() {
     const label = new Gtk.Label({ cssClasses: ["kb-layout-label"] })
+    const button = new Gtk.MenuButton({ cssClasses: ["kb-layout-button"], child: label })
 
-    const button = new Gtk.Button({ cssClasses: ["kb-layout-button"] })
-    button.set_child(label)
+    // ── Menú: una fila por distribución, la activa con check ──
+    const list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
+    const body = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 })
+    body.append(list)
 
-    const update = () => {
-        const layout = readActiveLayout()
-        label.label = LAYOUTS[layout] || layout.toUpperCase()
-        button.tooltipText = layout === "es" ? "Español" : "English"
-    }
+    const popover = MenuPopover(button, [{ title: "Idioma del teclado", titleIcon: "input-keyboard-symbolic", customChild: body }])
+    button.set_popover(popover)
 
-    button.connect("clicked", () => {
+    const select = (index: number) => {
         const device = getKeyboardDevice()
         if (!device) return
-        execAsync(["hyprctl", "switchxkblayout", device, "next"])
+        execAsync(["hyprctl", "switchxkblayout", device, String(index)])
             .then(update)
-            .catch(() => { })
-    })
+            .catch(e => logError(e, "keyboard: switch layout failed"))
+        popover.popdown()
+    }
+
+    const buildList = () => {
+        const { ids, active } = readLayouts()
+        while (list.get_first_child()) list.remove(list.get_first_child()!)
+        ids.forEach((id, i) => {
+            const info = layoutInfo(id)
+            const row = new Gtk.Box({ spacing: 10 })
+            row.append(new Gtk.Label({ label: info.code, cssClasses: ["kb-layout-code"], widthChars: 3 }))
+            row.append(new Gtk.Label({ label: info.name, xalign: 0, hexpand: true }))
+            row.append(new Gtk.Image({ iconName: "object-select-symbolic", cssClasses: ["popover-check"], opacity: i === active ? 1 : 0 }))
+            const btn = new Gtk.Button({ cssClasses: ["popover-item", ...(i === active ? ["active"] : [])], child: row })
+            btn.connect("clicked", () => select(i))
+            list.append(btn)
+        })
+    }
+    popover.connect("notify::visible", () => { if (popover.visible) buildList() })
+
+    const update = () => {
+        const { ids, active } = readLayouts()
+        const info = layoutInfo(ids[active] ?? "us")
+        label.label = info.code
+        button.tooltipText = `Teclado: ${info.name}`
+    }
 
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
         update()
@@ -66,5 +102,6 @@ export default function KeyboardLayout() {
 
     update()
 
+    popover.add_css_class("topbar-menu")  // mismo ancho que los demás menús de la barra
     return button
 }

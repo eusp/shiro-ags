@@ -35,32 +35,42 @@ export default function NetworkIndicator() {
     const icon = new Gtk.Image()
     const menubutton = new Gtk.MenuButton({ child: icon })
 
-    const statusIcon = new Gtk.Image({ iconName: "network-wireless-symbolic" })
-    const statusLabel = new Gtk.Label({ label: "", halign: Gtk.Align.START, hexpand: true, ellipsize: 3 })
-    const statusInner = new Gtk.Box({ spacing: 8 })
-    statusInner.append(statusIcon)
-    statusInner.append(statusLabel)
-    const statusRow = new Gtk.Box({ spacing: 4, cssClasses: ["popover-item"] })
-    statusRow.append(statusInner)
+    // Tarjeta de la conexión actual: ícono en círculo + nombre + estado
+    const statusIcon = new Gtk.Image({ iconName: "network-wireless-symbolic", pixelSize: 18 })
+    const statusIconBox = new Gtk.Box({ cssClasses: ["conn-card-icon"], valign: Gtk.Align.CENTER, halign: Gtk.Align.CENTER })
+    statusIconBox.append(statusIcon)
+    // Ícono centrado en el círculo; hexpand fijo en false para que no se propague
+    statusIcon.set_hexpand(true)
+    statusIcon.set_halign(Gtk.Align.CENTER)
+    statusIconBox.set_hexpand(false)
+    const statusLabel = new Gtk.Label({ label: "", xalign: 0, ellipsize: 3, maxWidthChars: 20, cssClasses: ["conn-card-title"] })
+    const statusSub = new Gtk.Label({ label: "", xalign: 0, cssClasses: ["conn-card-sub"] })
+    const statusTexts = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.CENTER, hexpand: true })
+    statusTexts.append(statusLabel)
+    statusTexts.append(statusSub)
+    const statusRow = new Gtk.Box({ spacing: 10, cssClasses: ["conn-card"] })
+    statusRow.append(statusIconBox)
+    statusRow.append(statusTexts)
 
     // Wi-Fi + actualizar + switch, todo en una sola fila: "Wi-Fi" y el
     // botón de actualizar van pegados a la izquierda, el switch queda
     // empujado lejos, a la derecha del todo.
-    const wifiToggleLabel = new Gtk.Label({ label: "Wi-Fi", xalign: 0 })
+    const wifiToggleLabel = new Gtk.Label({ label: "Wi-Fi", xalign: 0, hexpand: true, cssClasses: ["popover-section-title"] })
     const wifiSwitch = new Gtk.Switch({
         valign: Gtk.Align.CENTER,
-        halign: Gtk.Align.END,
-        hexpand: true,
         cssClasses: ["compact-switch"],
+        tooltipText: "Encender o apagar Wi-Fi",
     })
 
     const refreshSpinner = new Gtk.Spinner({ visible: false })
+    const refreshIcon = new Gtk.Image({ iconName: "view-refresh-symbolic" })
     const refreshBtn = new Gtk.Button({
         cssClasses: ["popover-icon-btn"],
+        tooltipText: "Buscar redes",
         valign: Gtk.Align.CENTER,
         child: (() => {
             const b = new Gtk.Box({ spacing: 4 })
-            b.append(new Gtk.Image({ iconName: "view-refresh-symbolic" }))
+            b.append(refreshIcon)
             b.append(refreshSpinner)
             return b
         })()
@@ -69,17 +79,11 @@ export default function NetworkIndicator() {
     // popover-row, no popover-item: la fila no es clicable como un todo
     // (el switch y el botón de actualizar tienen su propio hover), así que
     // no debe llevar el hover de .popover-item encima.
-    const wifiRow = new Gtk.Box({ spacing: 8, cssClasses: ["popover-row"] })
+    const wifiRow = new Gtk.Box({ spacing: 6, cssClasses: ["popover-section-row"] })
     wifiRow.append(wifiToggleLabel)
     wifiRow.append(refreshBtn)
     wifiRow.append(wifiSwitch)
 
-    const wifiSectionLabel = new Gtk.Label({
-        label: "Redes",
-        xalign: 0,
-        cssClasses: ["popover-section-title"],
-        visible: false,
-    })
 
     const makeWifiSlot = () => {
         const signalIcon = new Gtk.Image({ iconName: "network-wireless-symbolic" })
@@ -168,6 +172,9 @@ export default function NetworkIndicator() {
         return slot
     }
     const wifiSlots = Array.from({ length: WIFI_SLOTS }, makeWifiSlot)
+    // Ocupa el hueco de la lista (alto fijo: si el popover cambiara de
+    // tamaño abierto, Hyprland lo cerraría)
+    const wifiEmpty = new Gtk.Label({ cssClasses: ["popover-empty"], vexpand: true, valign: Gtk.Align.CENTER, heightRequest: 120 })
 
     const updateWifiList = () => {
         // Orden estable por SSID: si se ordenara por posición de escaneo,
@@ -179,7 +186,8 @@ export default function NetworkIndicator() {
             .slice(0, wifiSlots.length)
         const activeSsid = network.wifiDevice?.ssid || ""
 
-        wifiSectionLabel.visible = aps.length > 0
+        wifiEmpty.visible = aps.length === 0
+        wifiEmpty.label = !network.wifiEnabled ? "Wi-Fi apagado" : isRefreshing ? "Buscando…" : "No hay redes Wi-Fi cerca"
 
         wifiSlots.forEach((slot, i) => {
             const ap: AccessPoint | undefined = aps[i]
@@ -209,9 +217,11 @@ export default function NetworkIndicator() {
             : "network-offline-symbolic"
 
         statusIcon.iconName = icon.iconName
-        statusLabel.label = isConnected
-            ? (primary?.type === "WIFI" ? (primary.wifi?.ssid || "Conectado") : "Ethernet conectado")
-            : "Sin conexión"
+        const isWifi = primary?.type === "WIFI"
+        statusLabel.label = isConnected ? (isWifi ? (primary.wifi?.ssid || "Wi-Fi") : "Ethernet") : "Sin conexión"
+        statusSub.label = "Conectado"
+        statusSub.visible = isConnected
+        isConnected ? statusIconBox.add_css_class("on") : statusIconBox.remove_css_class("on")
     }
 
     let isRefreshing = false
@@ -225,6 +235,8 @@ export default function NetworkIndicator() {
         isRefreshing = false
         refreshSpinner.visible = false
         refreshSpinner.spinning = false
+        refreshIcon.visible = true
+        updateWifiList()
         if (refreshStopId) { GLib.source_remove(refreshStopId); refreshStopId = 0 }
     }
 
@@ -233,6 +245,8 @@ export default function NetworkIndicator() {
         isRefreshing = true
         refreshSpinner.visible = true
         refreshSpinner.spinning = true
+        refreshIcon.visible = false
+        updateWifiList()
         network.wifiDevice?.scan()
         execAsync(["nmcli", "device", "wifi", "rescan"]).catch(() => { })
 
@@ -262,32 +276,37 @@ export default function NetworkIndicator() {
     })
 
     const listBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
-    listBox.append(wifiSectionLabel)
+    listBox.append(wifiEmpty)
     wifiSlots.forEach(s => listBox.append(s.wrap))
 
+    // El alto lo da .topbar-menu.tall: la lista se estira y lo dinámico
+    // queda adentro (si el popover cambiara de tamaño, Hyprland lo cerraría)
     const scrolled = new Gtk.ScrolledWindow({
-        heightRequest: 4 * 44,
-        widthRequest: 240,
+        heightRequest: 100,
+        vexpand: true,
+        hscrollbarPolicy: Gtk.PolicyType.NEVER,
         child: listBox,
     })
 
-    const topSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, widthRequest: 240 })
-    topSection.append(statusRow)
-    topSection.append(wifiRow)
+    const wifiSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, vexpand: true })
+    wifiSection.append(wifiRow)
+    wifiSection.append(scrolled)
 
     const popover = MenuPopover(menubutton, [
-        { title: "Red", customChild: topSection },
-        { customChild: scrolled },
+        { title: "Red", titleIcon: "network-workgroup-symbolic", customChild: statusRow },
+        { customChild: wifiSection },
     ])
     menubutton.set_popover(popover)
 
     network.connect("notify::primary", updateStatus)
     network.connect("notify::connectivity", updateStatus)
-    network.connect("notify::wifi-enabled", updateWifiSwitch)
+    network.connect("notify::wifi-enabled", () => { updateWifiSwitch(); updateWifiList() })
     if (network.wifiDevice) network.wifiDevice.connect("notify::access-points", updateWifiList)
 
     updateStatus()
     updateWifiSwitch()
     updateWifiList()
+    popover.add_css_class("topbar-menu")  // mismo ancho que los demás menús de la barra
+    popover.add_css_class("tall")  // mismo alto que el portapapeles
     return menubutton
 }

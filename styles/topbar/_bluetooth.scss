@@ -2,6 +2,81 @@
 
 // Popovers de Bluetooth y Wi-Fi (Bluetooth.tsx, Network.tsx)
 #{$popover} {
+  // Tarjeta de la conexión actual (dispositivo o red)
+  .conn-card {
+    @include button-reset;
+    padding: 8px 10px;
+    margin: 2px 0;
+    border-radius: $radius-md;
+    background: theme-alpha(surface0, 0.6);
+    border: 1px solid theme-alpha(primary, 0.08);
+
+    &:hover:not(:disabled) {
+      background: theme-alpha(overlay0, 0.9);
+      border-color: theme-alpha(primary, 0.2);
+    }
+  }
+
+  .conn-card-icon {
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 50%;
+    background: theme-alpha(surface2, 0.6);
+    color: theme-alpha(subtext0, 0.6);
+
+    &.on {
+      background: theme-alpha(primary, 0.2);
+      color: var(--primary);
+    }
+  }
+
+  .conn-card-title {
+    @include text($text-sm, 600);
+    color: var(--accent0);
+  }
+
+  .conn-card-sub {
+    @include text(10px, 500);
+    color: theme-alpha(subtext0, 0.55);
+  }
+
+  // Título de sección con controles a la derecha ("Wi-Fi ⟳ ◯", "Dispositivos 🔍")
+  .popover-section-row {
+    padding: 0;
+    min-height: 28px;
+
+    .popover-section-title { padding-top: 0; padding-bottom: 0; }
+  }
+
+  // Botones dentro de la tarjeta (micrófono, desconectar)
+  .conn-card-btn {
+    image { color: theme-alpha(subtext0, 0.55); }
+
+    &:hover image { color: var(--accent0); }
+
+    // Micrófono activo: naranja, como el "HFP" de la barra
+    &.on image { color: #fb923c; }
+
+    &.dangerous:hover image { color: var(--danger); }
+  }
+
+  // "+" de un dispositivo nuevo y basurero de uno guardado: tenues hasta el hover
+  .bt-add image {
+    color: theme-alpha(subtext0, 0.35);
+  }
+
+  .bt-add:hover image {
+    color: var(--primary);
+  }
+
+  .bt-forget image {
+    color: theme-alpha(subtext0, 0.35);
+  }
+
+  .bt-forget:hover image {
+    color: var(--danger);
+  }
+
   .bt-status-error {
     @include text($text-xs, 500);
     color: var(--danger);
@@ -34,4 +109,9 @@ window.TopBar .bt-hfp label {
 
 window.TopBar .bt-hfp-label {
   @include text($text-xs, 700, $font-mono);
+}
+
+// Menús de la barra: filas con el mismo margen izquierdo que títulos y tarjetas
+popover.shared-popover.topbar-menu .popover-item {
+  padding: 6px 10px;
 }

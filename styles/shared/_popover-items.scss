@@ -3,11 +3,34 @@
 // Piezas comunes dentro de los popovers: títulos, filas, botones, textos,
 // separadores y switches.
 #{$popover} {
-  .popover-section-title {
-    @include text($text-sm, 700);
+  // Encabezado de cada popover: ícono · título ··· dato
+  .popover-header {
+    padding: 4px 10px 6px;
+    min-height: 26px;
+  }
+
+  .popover-header-icon {
     color: var(--primary);
+    -gtk-icon-size: 16px;
+  }
+
+  .popover-header-title {
+    @include text($text-md, 700);
+    color: var(--accent0);
+  }
+
+  label.popover-header-extra {
+    @include text($text-xs, 600, $font-mono);
+    color: var(--primary);
+  }
+
+  // Subtítulo dentro de un popover ("Redes", "Salida"…)
+  .popover-section-title {
+    @include text(10px, 700);
+    color: theme-alpha(subtext0, 0.5);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    padding: 4px 10px 2px;
   }
 
   // Fila clicable
@@ -46,6 +69,8 @@
     border-radius: $radius-md;
     color: theme-alpha(subtext0, 0.9);
 
+    &:disabled { opacity: 0.3; }
+
     image {
       font-size: $text-md;
       color: var(--primary);
@@ -80,6 +105,15 @@
     }
   }
 
+  // Elemento elegido de una lista (salida de audio, idioma…)
+  .popover-item.active {
+    color: var(--accent0);
+  }
+
+  .popover-check {
+    color: var(--primary);
+  }
+
   .popover-label {
     @include text($text-sm, 500);
     color: var(--text);
@@ -92,6 +126,18 @@
 
   .popover-separator {
     @include hairline;
+  }
+
+  // Mensaje cuando una lista está vacía
+  .popover-empty {
+    @include text($text-sm);
+    color: theme-alpha(subtext0, 0.4);
+  }
+
+  // Switches en el color del tema (GTK los pinta azules por defecto)
+  switch:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
   }
 
   switch.compact-switch {

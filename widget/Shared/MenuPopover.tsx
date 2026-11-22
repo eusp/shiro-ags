@@ -11,6 +11,8 @@ export interface MenuItem {
 
 export interface MenuSection {
     title?: string
+    titleIcon?: string        // ícono a la izquierda del título
+    titleExtra?: Gtk.Widget   // dato o botón a la derecha del título
     items?: MenuItem[]
     customChild?: Gtk.Widget
 }
@@ -45,11 +47,16 @@ export function MenuPopover(
 
     sections.forEach((section, idx) => {
         if (section.title) {
-            mainBox.append(new Gtk.Label({
-                label: section.title,
-                xalign: 0.5,
-                cssClasses: ["popover-section-title"]
-            }))
+            // Encabezado: ícono · título ··· dato
+            const head = new Gtk.Box({ spacing: 8, cssClasses: ["popover-header"] })
+            if (section.titleIcon) head.append(new Gtk.Image({ iconName: section.titleIcon, cssClasses: ["popover-header-icon"] }))
+            head.append(new Gtk.Label({ label: section.title, xalign: 0, hexpand: true, cssClasses: ["popover-header-title"] }))
+            if (section.titleExtra) {
+                section.titleExtra.add_css_class("popover-header-extra")
+                section.titleExtra.set_valign(Gtk.Align.CENTER)
+                head.append(section.titleExtra)
+            }
+            mainBox.append(head)
             mainBox.append(new Gtk.Separator({
                 orientation: Gtk.Orientation.HORIZONTAL,
                 cssClasses: ["popover-separator"]

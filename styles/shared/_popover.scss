@@ -33,4 +33,14 @@
     margin-left: 3px;
     margin-top: 27px;
   }
+
+  // Menús de los íconos de la barra: todos del mismo ancho
+  &.topbar-menu contents {
+    min-width: 260px;
+  }
+
+  // Portapapeles, Bluetooth y Red: mismo alto (su lista se estira)
+  &.topbar-menu.tall contents {
+    min-height: 330px;
+  }
 }

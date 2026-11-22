@@ -6,8 +6,30 @@
     background: transparent;
   }
 
+  .clip-list-box {
+    padding-right: 12px;
+  }
+
+  .popover-item.clip-item {
+    padding: 4px 8px;
+  }
+
   .clip-item-label {
     @include text($text-sm);
     color: var(--text);
+  }
+
+  .clip-item-sub {
+    @include text(10px, 500, $font-mono);
+    color: theme-alpha(subtext0, 0.5);
+  }
+
+  .clip-item-kind {
+    color: theme-alpha(primary, 0.8);
+  }
+
+  .clip-empty {
+    @include text($text-sm);
+    color: theme-alpha(subtext0, 0.45);
   }
 }

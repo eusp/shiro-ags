@@ -52,6 +52,9 @@ const forgetDevice = (address: string) => {
 
 let widgetCount = 0
 
+// "[TV] Samsung AU8000" → "Samsung AU8000"
+const cleanName = (n: string) => n.replace(/^\[[^\]]*\]\s*/, "")
+
 export default function BluetoothIndicator() {
     const bt = Bluetooth.get_default()
     if (!bt) return new Gtk.Box()
@@ -80,38 +83,69 @@ export default function BluetoothIndicator() {
     // superficie de layer-shell: si el contenido cambia de tamaño total
     // después de abierto, Hyprland lo descarta en vez de redimensionarlo,
     // así que todo lo dinámico tiene que quedar contenido ahí adentro.
-    const statusIcon = new Gtk.Image({ iconName: "bluetooth-disabled-symbolic" })
-    const statusLine = new Gtk.Label({ label: "", halign: Gtk.Align.START, hexpand: true, ellipsize: 3 })
-    const statusInner = new Gtk.Box({ spacing: 8 })
-    statusInner.append(statusIcon)
-    statusInner.append(statusLine)
-    const statusRow = new Gtk.Box({ spacing: 4, cssClasses: ["popover-item"] })
+    const statusIcon = new Gtk.Image({ iconName: "bluetooth-disabled-symbolic", pixelSize: 18 })
+    const statusIconBox = new Gtk.Box({ cssClasses: ["conn-card-icon"], valign: Gtk.Align.CENTER, halign: Gtk.Align.CENTER })
+    statusIconBox.append(statusIcon)
+    // Ícono centrado en el círculo; hexpand fijo en false para que no se propague
+    statusIcon.set_hexpand(true)
+    statusIcon.set_halign(Gtk.Align.CENTER)
+    statusIconBox.set_hexpand(false)
+    const statusLine = new Gtk.Label({ label: "", xalign: 0, ellipsize: 3, maxWidthChars: 20, cssClasses: ["conn-card-title"] })
+    const statusSub = new Gtk.Label({ label: "", xalign: 0, cssClasses: ["conn-card-sub"] })
+    const statusTexts = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, valign: Gtk.Align.CENTER, hexpand: true })
+    statusTexts.append(statusLine)
+    statusTexts.append(statusSub)
+    const statusInner = new Gtk.Box({ spacing: 10 })
+    statusInner.append(statusIconBox)
+    statusInner.append(statusTexts)
+    // Con un dispositivo conectado, la tarjeta lo desconecta al hacer clic
+    // Botones de la tarjeta: micrófono de los auriculares y desconectar.
+    // Aparecen solo si aplican; el círculo del ícono fija el alto de la
+    // tarjeta, así que mostrarlos u ocultarlos no la hace crecer.
+    const micBtn = new Gtk.Button({
+        cssClasses: ["popover-icon-btn", "conn-card-btn"],
+        iconName: "audio-input-microphone-symbolic",
+        valign: Gtk.Align.CENTER,
+        tooltipText: "Micrófono de los auriculares (el sonido pasa a mono, de baja calidad)",
+    })
+    const disconnectBtn = new Gtk.Button({
+        cssClasses: ["popover-icon-btn", "conn-card-btn", "dangerous"],
+        iconName: "window-close-symbolic",
+        valign: Gtk.Align.CENTER,
+        tooltipText: "Desconectar",
+    })
+    statusInner.append(micBtn)
+    statusInner.append(disconnectBtn)
+    const statusRow = new Gtk.Box({ cssClasses: ["conn-card"] })
     statusRow.append(statusInner)
+    statusInner.hexpand = true
 
-    const toggleLabel = new Gtk.Label({ label: "Bluetooth", xalign: 0 })
     const powerSwitch = new Gtk.Switch({
         valign: Gtk.Align.CENTER,
         halign: Gtk.Align.END,
-        hexpand: true,
         cssClasses: ["compact-switch"],
+        tooltipText: "Encender o apagar Bluetooth",
     })
 
     const scanSpinner = new Gtk.Spinner({ visible: false })
+    const scanIcon = new Gtk.Image({ iconName: "system-search-symbolic" })
     const scanBtn = new Gtk.Button({
         cssClasses: ["popover-icon-btn"],
+        tooltipText: "Buscar dispositivos",
         valign: Gtk.Align.CENTER,
         child: (() => {
             const b = new Gtk.Box({ spacing: 4 })
-            b.append(new Gtk.Image({ iconName: "system-search-symbolic" }))
+            b.append(scanIcon)
             b.append(scanSpinner)
             return b
         })()
     })
 
-    const toggleRow = new Gtk.Box({ spacing: 8, cssClasses: ["popover-row"] })
-    toggleRow.append(toggleLabel)
-    toggleRow.append(scanBtn)
-    toggleRow.append(powerSwitch)
+    // "Dispositivos" con el botón de buscar a la derecha
+    const devicesTitle = new Gtk.Label({ label: "Dispositivos", xalign: 0, hexpand: true, cssClasses: ["popover-section-title"] })
+    const devicesHeader = new Gtk.Box({ spacing: 4, cssClasses: ["popover-section-row"] })
+    devicesHeader.append(devicesTitle)
+    devicesHeader.append(scanBtn)
 
     // ─── Modo de los auriculares: música (A2DP) ↔ micrófono (manos libres) ──
     // El cambio automático de WirePlumber está desactivado (se colgaba al
@@ -126,9 +160,8 @@ export default function BluetoothIndicator() {
         cssClasses: ["compact-switch"],
         sensitive: false,
     })
-    const modeRow = new Gtk.Box({ spacing: 8, cssClasses: ["popover-row"] })
-    modeRow.append(modeLabel)
-    modeRow.append(modeSwitch)
+    void modeLabel
+    micBtn.connect("clicked", () => modeSwitch.set_active(!modeSwitch.active))
 
     type BtCard = { name: string; active: string; a2dp: string | null; headset: string | null }
     let card: BtCard | null = null
@@ -166,6 +199,8 @@ export default function BluetoothIndicator() {
         syncingMode = true
         modeSwitch.sensitive = !!(card?.a2dp && card?.headset)
         modeSwitch.set_active(hfp)
+        micBtn.visible = modeSwitch.sensitive
+        hfp ? micBtn.add_css_class("on") : micBtn.remove_css_class("on")
         syncingMode = false
     }
 
@@ -208,20 +243,9 @@ export default function BluetoothIndicator() {
         })
     }
 
-    // Slot conectado actualmente
-    const connectedIcon = new Gtk.Image({ iconName: "bluetooth-symbolic" })
-    const connectedName = new Gtk.Label({ label: "", halign: Gtk.Align.START, hexpand: true, ellipsize: 3 })
-    const connectedInner = new Gtk.Box({ spacing: 8 })
-    connectedInner.append(connectedIcon)
-    connectedInner.append(connectedName)
-    connectedInner.append(new Gtk.Label({ label: "●", cssClasses: ["bt-connected"] }))
-    // El hover va en el botón, no en la caja interna — mismo motivo que en
-    // los slots de "Anteriores": evita el doble-hover al superponer el
-    // resaltado nativo del botón con el de popover-item.
-    const connectedBtn = new Gtk.Button({ child: connectedInner, cssClasses: ["popover-item"], visible: false })
     // Un solo listener de por vida: lee el dispositivo conectado al momento
     // del clic en vez de cerrar sobre un valor capturado en update().
-    connectedBtn.connect("clicked", () => {
+    disconnectBtn.connect("clicked", () => {
         const connected = (bt.devices || []).find((d: any) => d.connected)
         log(`botón [conectado] → desconectar ${connected ? `${connected.name} (${connected.address})` : "(no hay ninguno conectado)"}`)
         if (connected) connected.disconnect_device(null)
@@ -244,7 +268,7 @@ export default function BluetoothIndicator() {
         // entera también lo tenía, y se veían dos hovers superpuestos al
         // pasar el mouse (el de la fila y el nativo del botón "flat").
         const connectBtn = new Gtk.Button({ child: connectInner, cssClasses: ["popover-item"], hexpand: true })
-        const forgetBtn = new Gtk.Button({ iconName: "edit-delete-symbolic", cssClasses: ["popover-icon-btn", "dangerous"] })
+        const forgetBtn = new Gtk.Button({ iconName: "edit-delete-symbolic", cssClasses: ["popover-icon-btn", "dangerous", "bt-forget"], tooltipText: "Olvidar", valign: Gtk.Align.CENTER })
         const row = new Gtk.Box({ spacing: 4, visible: false })
         row.append(connectBtn)
         row.append(forgetBtn)
@@ -283,6 +307,7 @@ export default function BluetoothIndicator() {
         return slot
     }
     const savedSlots = Array.from({ length: 10 }, makeSlot)
+    const devicesEmpty = new Gtk.Label({ label: "", cssClasses: ["popover-empty"], vexpand: true, valign: Gtk.Align.CENTER, heightRequest: 120 })
 
     // Slots para dispositivos del scan
     const scanSectionLabel = new Gtk.Label({
@@ -294,17 +319,16 @@ export default function BluetoothIndicator() {
     const makeScanSlot = () => {
         const slotIcon = new Gtk.Image({ iconName: "bluetooth-symbolic" })
         const slotName = new Gtk.Label({ label: "", halign: Gtk.Align.START, hexpand: true, ellipsize: 3 })
-        const connectBtn = new Gtk.Button({
-            label: "Conectar",
-            cssClasses: ["suggested-action", "bt-scan-connect"],
-            valign: Gtk.Align.CENTER,
-        })
-        const inner = new Gtk.Box({ spacing: 8, hexpand: true, cssClasses: ["popover-item", "bt-scan-item"] })
+        const inner = new Gtk.Box({ spacing: 8 })
         inner.append(slotIcon)
         inner.append(slotName)
-        inner.append(connectBtn)
-        const row = new Gtk.Box({ visible: false })
-        row.append(inner)
+        const connectBtn = new Gtk.Button({ child: inner, cssClasses: ["popover-item"], hexpand: true })
+        // "+" en la misma columna que el basurero de los guardados y la lupa
+        const addBtn = new Gtk.Button({ iconName: "list-add-symbolic", cssClasses: ["popover-icon-btn", "bt-add"], tooltipText: "Emparejar y conectar", valign: Gtk.Align.CENTER })
+        const row = new Gtk.Box({ spacing: 4, visible: false })
+        row.append(connectBtn)
+        row.append(addBtn)
+        addBtn.connect("clicked", () => connectBtn.emit("clicked"))
 
         const slot = { row, slotIcon, slotName, connectBtn, address: "" }
 
@@ -380,16 +404,11 @@ export default function BluetoothIndicator() {
     const updateConnected = () => {
         const connected = (bt.devices || []).find((d: any) => d.connected)
         if (connected) {
-            connectedIcon.iconName = connected.icon || "bluetooth-symbolic"
-            connectedName.label = connected.name || connected.address
-            connectedBtn.visible = true
             saveDevice({
                 name: connected.name || connected.address,
                 address: connected.address,
                 icon: connected.icon || "bluetooth-symbolic"
             })
-        } else {
-            connectedBtn.visible = false
         }
     }
 
@@ -404,7 +423,7 @@ export default function BluetoothIndicator() {
             const dev = filtered[i]
             if (dev) {
                 slot.slotIcon.iconName = dev.icon || "bluetooth-symbolic"
-                slot.slotName.label = dev.name || dev.address
+                slot.slotName.label = cleanName(dev.name || dev.address)
                 slot.address = dev.address
                 slot.row.visible = true
             } else {
@@ -422,12 +441,13 @@ export default function BluetoothIndicator() {
         )
 
         scanSectionLabel.visible = available.length > 0
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => { updateDevicesEmpty(); return GLib.SOURCE_REMOVE })
 
         scanSlots.forEach((slot, i) => {
             const dev = available[i]
             if (dev) {
                 slot.slotIcon.iconName = dev.icon || "bluetooth-symbolic"
-                slot.slotName.label = dev.name || dev.address
+                slot.slotName.label = cleanName(dev.name || dev.address)
                 slot.address = dev.address
                 slot.row.visible = true
             } else {
@@ -451,7 +471,9 @@ export default function BluetoothIndicator() {
         isScanning = false
         scanSpinner.visible = false
         scanSpinner.spinning = false
+        scanIcon.visible = true
         bt.adapter?.stop_discovery()
+        updateDevicesEmpty()
         if (scanHandlerId) { bt.disconnect(scanHandlerId); scanHandlerId = 0 }
         if (scanPollId) { GLib.source_remove(scanPollId); scanPollId = 0 }
         if (scanStopId) { GLib.source_remove(scanStopId); scanStopId = 0 }
@@ -467,7 +489,9 @@ export default function BluetoothIndicator() {
         isScanning = true
         scanSpinner.visible = true
         scanSpinner.spinning = true
+        scanIcon.visible = false
         currentDiscovered = new Map()
+        updateDevicesEmpty()
 
         adapter.start_discovery()
 
@@ -549,26 +573,29 @@ export default function BluetoothIndicator() {
 
     const listBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
     listBox.append(statusLabel)
-    listBox.append(connectedBtn)
-    listBox.append(savedSectionLabel)
+    listBox.append(devicesEmpty)
     savedSlots.forEach(s => listBox.append(s.row))
-    listBox.append(scanSectionLabel)
     scanSlots.forEach(s => listBox.append(s.row))
 
+    // El alto lo da .topbar-menu.tall: la lista se estira y lo dinámico
+    // queda adentro (si el popover cambiara de tamaño, Hyprland lo cerraría)
     const scrolled = new Gtk.ScrolledWindow({
-        heightRequest: 4 * 44,
-        widthRequest: 220,
+        heightRequest: 100,
+        vexpand: true,
+        hscrollbarPolicy: Gtk.PolicyType.NEVER,
         child: listBox,
     })
 
-    const topSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, widthRequest: 220 })
+    const topSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 })
     topSection.append(statusRow)
-    topSection.append(toggleRow)
-    topSection.append(modeRow)
+
+    const devicesSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, vexpand: true })
+    devicesSection.append(devicesHeader)
+    devicesSection.append(scrolled)
 
     const popover = MenuPopover(menubutton, [
-        { title: "Bluetooth", customChild: topSection },
-        { customChild: scrolled }
+        { title: "Bluetooth", titleIcon: "bluetooth-active-symbolic", titleExtra: powerSwitch, customChild: topSection },
+        { customChild: devicesSection }
     ])
 
     menubutton.set_popover(popover)
@@ -593,8 +620,13 @@ export default function BluetoothIndicator() {
         icon.iconName = bt.isPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
         statusIcon.iconName = iconName
         statusLine.label = connected
-            ? (connected.name || connected.address)
-            : bt.isPowered ? "Sin dispositivo conectado" : "Bluetooth desactivado"
+            ? cleanName(connected.name || connected.address)
+            : bt.isPowered ? "Ningún dispositivo" : "Bluetooth apagado"
+        statusSub.label = "Conectado"
+        statusSub.visible = !!connected
+        disconnectBtn.visible = !!connected
+        if (!connected) micBtn.visible = false
+        connected ? statusIconBox.add_css_class("on") : statusIconBox.remove_css_class("on")
 
         syncingSwitch = true
         powerSwitch.set_active(bt.isPowered)
@@ -610,11 +642,21 @@ export default function BluetoothIndicator() {
         updateConnected()
         updateSavedSlots()
         updateScanSlots()
+        updateDevicesEmpty()
+    }
+
+    // Mensaje en el hueco de la lista cuando no hay dispositivos
+    function updateDevicesEmpty() {
+        const any = savedSlots.some(s => s.row.visible) || scanSlots.some(s => s.row.visible)
+        devicesEmpty.visible = !any
+        devicesEmpty.label = !bt.isPowered ? "Bluetooth apagado" : isScanning ? "Buscando…" : "Pulsa la lupa para buscar"
     }
 
     bt.connect("notify::is-powered", update)
     bt.connect("notify::devices", update)
 
     update()
+    popover.add_css_class("topbar-menu")  // mismo ancho que los demás menús de la barra
+    popover.add_css_class("tall")  // mismo alto que el portapapeles
     return menubutton
 }

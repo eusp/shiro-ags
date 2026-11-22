@@ -3,6 +3,9 @@
 // UPS: con luz queda en el color normal de la barra; colores fijos y vivos
 // (igual que la batería) para que se vean con cualquier tema.
 window.TopBar .ups {
+  color: theme-alpha(subtext0, 0.75); // no es botón: sin esto queda blanco
+  padding: 0 5px;
+
   &.on-battery { color: #facc15; } // amarillo: corte de luz, con batería del UPS
   &.critical   { color: #f87171; } // rojo: batería baja, apagado inminente
 }

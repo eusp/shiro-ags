@@ -120,9 +120,10 @@ export default function Microphone() {
     box.append(slider)
 
     const popover = MenuPopover(menubutton, [
-        { title: "Micrófono", customChild: box }
+        { title: "Micrófono", titleIcon: "audio-input-microphone-symbolic", customChild: box }
     ])
     menubutton.set_popover(popover)
 
+    popover.add_css_class("topbar-menu")  // mismo ancho que los demás menús de la barra
     return menubutton
 }

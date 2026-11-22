@@ -25,6 +25,12 @@ export function toggleRightMenu() {
     }
 }
 
+// Avisa cuando el menú se abre o se cierra (el botón de la topbar se resalta)
+const visibilitySubs: ((v: boolean) => void)[] = []
+export function onRightMenuVisible(fn: (v: boolean) => void) {
+    visibilitySubs.push(fn)
+}
+
 export default function RightMenu(gdkmonitor: Gdk.Monitor) {
     const { TOP, BOTTOM, RIGHT } = Astal.WindowAnchor
 
@@ -138,5 +144,6 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
     ) as Astal.Window
 
     rightMenuWindowRef = rightMenuWindow
+    rightMenuWindow.connect("notify::visible", () => visibilitySubs.forEach(fn => fn(rightMenuWindow.visible)))
     return rightMenuWindow
 }

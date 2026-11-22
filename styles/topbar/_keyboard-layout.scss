@@ -5,3 +5,15 @@ window.TopBar .kb-layout-label {
   @include text($text-xs, 700, $font-mono);
   letter-spacing: 0.5px;
 }
+
+// Menú del selector de idioma
+#{$popover} {
+  .kb-layout-code {
+    @include text($text-xs, 700, $font-mono);
+    color: var(--primary);
+    padding: 1px 4px;
+    border-radius: $radius-xs;
+    background: theme-alpha(primary, 0.12);
+  }
+
+}

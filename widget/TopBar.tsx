@@ -45,16 +45,17 @@ export default function TopBar(gdkmonitor: Gdk.Monitor) {
         )
         bar.set_end_widget(
           <box cssClasses={['bar-right']} halign={Gtk.Align.END} spacing={6}>
-            <RightMenuToggle />
+            {/* Herramientas · bandeja · estado del sistema · menú */}
             <KeyboardLayout />
             <Clipboard />
-            <Volume />
+            <SysTray />
             <Microphone />
+            <Volume />
             <BluetoothIndicator />
             <NetworkIndicator />
-            <SysTray />
             <BatteryIndicator />
             <UpsIndicator />
+            <RightMenuToggle />
           </box> as Gtk.Widget
         )
         return bar
