@@ -1,8 +1,11 @@
 import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
-import { exec, execAsync } from "ags/process"
+import { execAsync } from "ags/process"
 
 const SCRIPT = `${GLib.get_home_dir()}/.config/ags/scripts/audio-route.sh`
+// Mientras se envía, cada cuánto se revisa que el envío siga vivo y se repara
+// (un reinicio de PipeWire o un cambio de modo de los auriculares lo cortaba).
+const HEAL_S = 10
 
 export default function AudioRoute() {
     const mkBtn = (icon: string, tip: string) => {
@@ -20,15 +23,31 @@ export default function AudioRoute() {
     const localBtn = mkBtn("audio-speakers-symbolic", "Audio en este dispositivo")
     const sendBtn = mkBtn("network-transmit-symbolic", "Enviar audio a la otra máquina")
 
+    // Asíncrono: con exec() síncrono, si PipeWire se colgaba, se congelaba
+    // toda la barra esperando a pactl.
+    let state = "local"
+    let updating = false
     const update = () => {
-        try {
-            const state = exec(`bash ${SCRIPT} status`).trim()
-            localBtn.cssClasses = state === "local" ? ["audio-route-btn", "active"] : ["audio-route-btn"]
-            sendBtn.cssClasses = state === "send" ? ["audio-route-btn", "active"] : ["audio-route-btn"]
-        } catch (e: any) {
-            // @ts-ignore
-            print(e)
-        }
+        if (updating) return
+        updating = true
+        execAsync(`bash ${SCRIPT} status`)
+            .then((out) => {
+                state = out.trim()
+                localBtn.cssClasses = state === "local" ? ["audio-route-btn", "active"] : ["audio-route-btn"]
+                sendBtn.cssClasses = state === "send" ? ["audio-route-btn", "active"] : ["audio-route-btn"]
+            })
+            .catch((e) => print(e))
+            .finally(() => { updating = false })
+    }
+
+    let healing = false
+    const heal = () => {
+        if (healing || state !== "send") return
+        healing = true
+        execAsync(`bash ${SCRIPT} heal`)
+            .then((out) => { if (out.startsWith("fixed")) print(`audio-route: ${out.trim()}`) })
+            .catch((e) => print(e))
+            .finally(() => { healing = false; update() })
     }
 
     const run = (btn: Gtk.Button, arg: string) => {
@@ -46,6 +65,10 @@ export default function AudioRoute() {
 
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
         update()
+        return GLib.SOURCE_CONTINUE
+    })
+    GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, HEAL_S, () => {
+        heal()
         return GLib.SOURCE_CONTINUE
     })
 
@@ -66,6 +89,7 @@ export default function AudioRoute() {
     row.append(spacer())
     row.append(sendBtn)
     row.append(spacer())
+
 
     const box = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,

@@ -5,6 +5,7 @@
 #   audio-route.sh local    -> output on this machine's own hardware
 #   audio-route.sh send     -> stream this machine's audio to the other machine
 #   audio-route.sh status   -> prints "local" or "send"
+#   audio-route.sh heal     -> while sending, restart whatever part died (AGS runs it)
 #
 # Run by the sender over SSH on the other machine:
 #   audio-route.sh receive <from>   -> start the RTP receiver
@@ -36,6 +37,9 @@ REMOTE_SCRIPT='~/.config/ags/scripts/audio-route.sh'
 RUN_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 SEND_CONF="$RUN_DIR/audio-route-send.conf"
 RECV_CONF="$RUN_DIR/audio-route-recv.conf"
+# Present while the user wants to send: lets "heal" rebuild the route after the
+# sender or the receiver dies (a PipeWire restart, headphones changing profile...)
+INTENT_FILE="$RUN_DIR/audio-route.intent"
 
 # ── resolve the "other" machine ─────────────────────────────────────────────
 me="$(hostname)"
@@ -169,6 +173,8 @@ cmd_local() {
   # picks by priority, so it keeps switching to bluetooth headphones whenever they connect
   pw-metadata -n default -d 0 default.configured.audio.sink >/dev/null 2>&1 || true
   [ -n "$(instance_pids "$SEND_CONF")" ] && was_sending=1
+  [ -f "$INTENT_FILE" ] && was_sending=1
+  rm -f "$INTENT_FILE"
   stop_instance "$SEND_CONF"
   unload_legacy_tunnel
   # otherwise the other machine's receiver keeps listening for nothing
@@ -204,17 +210,53 @@ cmd_send() {
 
   # 3. start the sender here and move everything to it
   unload_legacy_tunnel
-  write_send_conf "$ip"
+  if ! start_sender "$ip"; then
+    fail "No se pudo crear la salida de audio hacia $other."
+  fi
+  echo send > "$INTENT_FILE"
+
+  echo "send:$other_addr:$remote_sink"
+}
+
+start_sender() {
+  local i
+  write_send_conf "$1"
   start_instance "$SEND_CONF"
   for i in $(seq 1 30); do sink_ready && break; sleep 0.1; done
   if ! sink_ready; then
     stop_instance "$SEND_CONF"
-    fail "No se pudo crear la salida de audio hacia $other."
+    return 1
   fi
   pactl set-default-sink "$SEND_SINK"
   move_all_inputs "$SEND_SINK"
+}
 
-  echo "send:$other_addr:$remote_sink"
+# Run periodically by AGS. Does nothing unless the user chose "send".
+cmd_heal() {
+  local ip fixed=""
+  [ -f "$INTENT_FILE" ] || { echo "idle"; return 0; }
+
+  # the receiver: its node disappears if PipeWire restarts over there
+  if ! "${SSH[@]}" "emerson@$other_addr" \
+      "pw-cli ls Node </dev/null 2>/dev/null | grep -q '\"$RECV_NODE\"'" 2>/dev/null; then
+    # unreachable (asleep, off the network): try again on the next round
+    "${SSH[@]}" "emerson@$other_addr" true 2>/dev/null || { echo "unreachable"; return 0; }
+    "${SSH[@]}" "emerson@$other_addr" "bash $REMOTE_SCRIPT receive $me" >/dev/null 2>&1 \
+      && fixed="${fixed}receiver "
+  fi
+
+  # the sender here
+  if ! sink_ready || [ -z "$(instance_pids "$SEND_CONF")" ]; then
+    ip="$(other_ipv4)"
+    if [ -n "$ip" ] && start_sender "$ip"; then fixed="${fixed}sender "; fi
+  elif [ "$(pactl get-default-sink)" != "$SEND_SINK" ]; then
+    # the sink is fine but the output went elsewhere (e.g. headphones connected)
+    pactl set-default-sink "$SEND_SINK"
+    move_all_inputs "$SEND_SINK"
+    fixed="${fixed}default "
+  fi
+
+  echo "${fixed:+fixed: }${fixed:-ok}"
 }
 
 cmd_receive() {
@@ -239,7 +281,12 @@ cmd_receive_stop() {
 }
 
 cmd_status() {
-  if [ "$(pactl get-default-sink)" = "$SEND_SINK" ]; then echo "send"; else echo "local"; fi
+  # the intent counts too: while "heal" rebuilds a dead route it is still "send"
+  if [ -f "$INTENT_FILE" ] || [ "$(pactl get-default-sink)" = "$SEND_SINK" ]; then
+    echo "send"
+  else
+    echo "local"
+  fi
 }
 
 case "${1:-status}" in
@@ -248,5 +295,6 @@ case "${1:-status}" in
   status)       cmd_status ;;
   receive)      cmd_receive "${2:-}" ;;
   receive-stop) cmd_receive_stop ;;
-  *) echo "usage: $(basename "$0") {local|send|status}" >&2; exit 1 ;;
+  heal)         cmd_heal ;;
+  *) echo "usage: $(basename "$0") {local|send|status|heal}" >&2; exit 1 ;;
 esac
