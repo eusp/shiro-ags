@@ -233,14 +233,14 @@ export default function PerformancePanel() {
         child: detailsScroll,
     })
 
-    const setExpanded = (open: boolean) => {
+    // La interfaz sigue a perfExpanded (el menú lo cierra al ocultarse)
+    perfExpanded.subscribe(open => {
         revealer.set_reveal_child(open)
         arrow.set_label(open ? "⌄" : "›")
         header.set_tooltip_text(open ? "Ocultar detalles" : "Ver detalles")
         open ? header.add_css_class("expanded") : header.remove_css_class("expanded")
-        perfExpanded.set(open)
-    }
-    header.connect("clicked", () => setExpanded(!revealer.get_reveal_child()))
+    })
+    header.connect("clicked", () => perfExpanded.set(!perfExpanded.get()))
 
     const body = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 10, cssClasses: ["perf-body"] })
     body.append(rows)

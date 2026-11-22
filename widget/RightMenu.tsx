@@ -76,9 +76,8 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
 
     // Apps expandidas: ocupan todo el RightMenu, lo de arriba se oculta
     appsExpanded.subscribe(expanded => {
-        // Se fija el ancho actual para que la barra no se estreche al ocultar lo de arriba
-        if (expanded && container) container.set_size_request(container.get_width(), -1)
-        else if (container) container.set_size_request(MENU_WIDTH, -1)
+        // Ancho fijo siempre, para que no se estreche al ocultar lo de arriba
+        container?.set_size_request(MENU_WIDTH, -1)
         topZone.set_visible(!expanded)
         themeSelector.set_visible(!expanded)
         appsPanelZone.vexpand = expanded
@@ -107,6 +106,12 @@ export default function RightMenu(gdkmonitor: Gdk.Monitor) {
             application={app}
             layer={Astal.Layer.TOP}
             keymode={Astal.Keymode.ON_DEMAND}
+            onHide={() => {
+                // La próxima vez se abre limpio: apps, tema y rendimiento recogidos
+                appsExpanded.set(false)
+                themeExpanded.set(false)
+                perfExpanded.set(false)
+            }}
             onShow={() => {
                 GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
                     if (appsPanelRef && appsPanelRef.searchEntry) {

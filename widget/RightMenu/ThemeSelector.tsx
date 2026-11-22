@@ -481,9 +481,9 @@ export default function ThemeSelector() {
         panel.append(ApplyButton(themes, selected, pendingMode))
     }
 
-    toggleBtn.connect("clicked", () => {
-        const next = !themeExpanded.get()
-        themeExpanded.set(next)
+    toggleBtn.connect("clicked", () => themeExpanded.set(!themeExpanded.get()))
+    // La interfaz sigue a themeExpanded (el menú lo cierra al ocultarse)
+    themeExpanded.subscribe(next => {
         panel.set_visible(next)
         if (next) {
             // Al abrir, empieza en el tema activo con su modo actual
