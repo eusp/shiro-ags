@@ -194,7 +194,7 @@ export function MediaControls() {
     playBtn.set_child(playIcon)
 
     const container = (
-        <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["media-controls"]} spacing={6} hexpand={false} />
+        <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["media-controls"]} spacing={8} hexpand={false} />
     ) as Gtk.Box
     container.append(sep)
     container.append(playBtn)
@@ -233,7 +233,8 @@ export function MediaControls() {
         }
 
         const media = hasMedia()
-        container.opacity = media ? 1 : 0.3
+        // Solo el play se atenúa sin música; el separador queda igual que el de abajo
+        playBtn.opacity = media ? 1 : 0.3
         playIcon.iconName = media && player.playbackStatus === Mpris.PlaybackStatus.PLAYING
             ? "media-playback-pause-symbolic"
             : "media-playback-start-symbolic"
