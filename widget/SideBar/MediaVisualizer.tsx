@@ -1,4 +1,6 @@
-import { Gtk } from "ags/gtk4"
+import { Gtk, Gdk } from "ags/gtk4"
+// @ts-ignore
+import GObject from "gi://GObject"
 // @ts-ignore
 import GLib from "gi://GLib?version=2.0"
 // @ts-ignore
@@ -7,6 +9,33 @@ import Mpris from "../../lib/mpris"
 import { createAnalyzer, HOP, SAMPLE_RATE, SEGMENT_COUNT } from "./spectrum"
 
 const mpris = Mpris.get_default()
+
+// ─── Encendido / apagado manual ──────────────────────────────────────────────
+// Se guarda como un archivo vacío: si existe, el visualizador está apagado y
+// sigue así tras reiniciar AGS. Apagado no corre parec ni se dibuja nada.
+const OFF_FILE = `${GLib.get_user_state_dir()}/shiro-ags/visualizer-off`
+let enabled = !GLib.file_test(OFF_FILE, GLib.FileTest.EXISTS)
+const listeners: Array<() => void> = []
+
+export const isVisualizerEnabled = () => enabled
+
+export function setVisualizerEnabled(on: boolean) {
+    enabled = on
+    try {
+        if (on) Gio.File.new_for_path(OFF_FILE).delete(null)
+        else {
+            GLib.mkdir_with_parents(GLib.path_get_dirname(OFF_FILE), 0o755)
+            GLib.file_set_contents(OFF_FILE, "")
+        }
+    } catch {
+        // sin el archivo solo se pierde recordarlo al reiniciar
+    }
+    listeners.forEach((fn) => fn())
+}
+
+export function onVisualizerChanged(fn: () => void) {
+    listeners.push(fn)
+}
 
 // === DISEÑO ===
 const WIDTH = 30
@@ -29,9 +58,28 @@ const ALPHA_FULL = 1
 const ALPHA_CURVE = 1.8
 // Puntos de pico que se quedan atrás cuando una línea baja.
 const SHOW_PEAKS = false
+// Línea que queda al apagarlo a mano: media longitud, opacidad y alto de su
+// zona (es lo que se puede clicar para encenderlo).
+const OFF_HALF = 6
+const OFF_ALPHA = 0.35
+const OFF_HEIGHT = 20
 // Cada cuánto se revisa qué salida de audio está sonando.
 const WATCH_MS = 3000
 // ===============
+
+// Lienzo que mide solo lo que dibuja: mínimo 1 px (en la pantalla baja de la
+// laptop se encoge y las líneas se juntan, sin empujar los controles fuera) e
+// ideal el alto de las barras. El hueco sobrante de la barra lo toman las apps.
+const VisCanvas = GObject.registerClass(
+    { GTypeName: "ShiroVisCanvas" },
+    class VisCanvas extends Gtk.DrawingArea {
+        wanted: () => number = () => 1
+        vfunc_measure(orientation: Gtk.Orientation, _forSize: number): [number, number, number, number] {
+            if (orientation === Gtk.Orientation.HORIZONTAL) return [WIDTH, WIDTH, -1, -1]
+            return [1, Math.max(1, Math.round(this.wanted())), -1, -1]
+        }
+    },
+)
 
 // Visualizador de espectro de la barra lateral. El análisis está en
 // spectrum.ts; aquí van la captura (parec) y el dibujo.
@@ -47,22 +95,32 @@ export function MediaVisualizer() {
             orientation={Gtk.Orientation.VERTICAL}
             cssClasses={["media-visualizer"]}
             halign={Gtk.Align.CENTER}
-            vexpand
+            valign={Gtk.Align.END}
         />
     ) as Gtk.Box
 
     let analyzer = createAnalyzer()
 
     // El color sale del CSS (.vis-noise-line { color }), así sigue al tema.
-    const canvas = new Gtk.DrawingArea({
+    const canvas = new VisCanvas({
         cssClasses: ["vis-noise-line"],
-        contentWidth: WIDTH,
-        // Pide lo mínimo y se estira con el espacio que sobre.
-        contentHeight: 1,
         halign: Gtk.Align.START,
-        vexpand: true,
     })
+    canvas.wanted = () => !enabled ? OFF_HEIGHT : device ? PITCH * SEGMENT_COUNT : 1
     canvas.set_draw_func((_area: Gtk.DrawingArea, cr: any, _w: number, height: number) => {
+        // Apagado a mano: una línea tenue abajo, para saber dónde hacer clic
+        // para encenderlo de nuevo.
+        if (!enabled) {
+            const c = canvas.get_color()
+            cr.setSourceRGBA(c.red, c.green, c.blue, OFF_ALPHA)
+            cr.setLineWidth(LINE)
+            cr.setLineCap(1) // ROUND
+            cr.moveTo(WIDTH / 2 - OFF_HALF, height / 2)
+            cr.lineTo(WIDTH / 2 + OFF_HALF, height / 2)
+            cr.stroke()
+            cr.$dispose()
+            return
+        }
         // Oculto si no hay espacio o si no suena nada (no hay captura).
         if (height < MIN_VISIBLE_HEIGHT || !device) {
             cr.$dispose()
@@ -97,6 +155,17 @@ export function MediaVisualizer() {
         cr.$dispose()
     })
     container.append(canvas)
+
+    // Clic sobre el visualizador: apagar / encender. Todo el lienzo cuenta:
+    // mide solo lo que dibuja (ver VisCanvas).
+    const click = new Gtk.GestureClick()
+    click.connect("released", () => setVisualizerEnabled(!enabled))
+    canvas.add_controller(click)
+    canvas.cursor = Gdk.Cursor.new_from_name("pointer", null)
+    const syncTooltip = () => {
+        canvas.tooltipText = enabled ? "Clic para apagar el visualizador" : "Clic para encender el visualizador"
+    }
+    syncTooltip()
 
     // ─── Captura ─────────────────────────────────────────────────────────────
     // El vigilante mira cada WATCH_MS si hay que capturar y de qué salida:
@@ -150,13 +219,14 @@ export function MediaVisualizer() {
         device = null
         // Vuelta al reposo, dibujado una vez.
         analyzer = createAnalyzer()
-        canvas.queue_draw()
+        canvas.queue_resize()
     }
 
     const start = (sink: string) => {
         stop()
         const gen = generation
         device = sink
+        canvas.queue_resize()
         try {
             subprocess = Gio.Subprocess.new(
                 ["parec", "--format=s16le", `--rate=${SAMPLE_RATE}`, "--channels=1", "--latency-msec=30", `--device=${sink}.monitor`],
@@ -199,6 +269,10 @@ export function MediaVisualizer() {
 
     const check = async () => {
         if (checking || destroyed) return
+        if (!enabled) {
+            if (device) stop()
+            return
+        }
         checking = true
         try {
             const sink = await soundingSink()
@@ -222,6 +296,7 @@ export function MediaVisualizer() {
         }
         check()
     }
+    onVisualizerChanged(() => { syncTooltip(); canvas.queue_resize(); check() })
     const playersId = mpris.connect("notify::players", watchPlayers)
     watchPlayers()
 

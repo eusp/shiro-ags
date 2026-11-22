@@ -111,9 +111,12 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
 }
 
 export default function AppList() {
+    // Se estira por todo el hueco libre de la barra (las apps quedan arriba);
+    // el visualizador solo ocupa lo que dibuja.
     const container = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,
         valign: Gtk.Align.START,
+        vexpand: true,
         spacing: 8
     })
 
