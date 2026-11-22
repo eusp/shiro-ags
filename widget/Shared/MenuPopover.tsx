@@ -1,5 +1,6 @@
 import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib"
+import Gio from "gi://Gio"
 
 export interface MenuItem {
     label?: string
@@ -12,6 +13,7 @@ export interface MenuItem {
 export interface MenuSection {
     title?: string
     titleIcon?: string        // ícono a la izquierda del título
+    titleGicon?: Gio.Icon     // o un ícono ya cargado (bandeja del sistema)
     titleExtra?: Gtk.Widget   // dato o botón a la derecha del título
     items?: MenuItem[]
     customChild?: Gtk.Widget
@@ -50,6 +52,7 @@ export function MenuPopover(
             // Encabezado: ícono · título ··· dato
             const head = new Gtk.Box({ spacing: 8, cssClasses: ["popover-header"] })
             if (section.titleIcon) head.append(new Gtk.Image({ iconName: section.titleIcon, cssClasses: ["popover-header-icon"] }))
+            else if (section.titleGicon) head.append(new Gtk.Image({ gicon: section.titleGicon, cssClasses: ["popover-header-icon"] }))
             head.append(new Gtk.Label({ label: section.title, xalign: 0, hexpand: true, cssClasses: ["popover-header-title"] }))
             if (section.titleExtra) {
                 section.titleExtra.add_css_class("popover-header-extra")

@@ -27,3 +27,13 @@
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
+
+// Íconos de la bandeja: muchos vienen a color o en blanco puro; se atenúan
+// para que no resalten más que el resto de la barra
+window.TopBar .tray-btn image {
+  opacity: 0.75;
+}
+
+window.TopBar .tray-btn:hover image {
+  opacity: 1;
+}

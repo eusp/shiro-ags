@@ -39,32 +39,10 @@ const MENU_IFACE = "com.canonical.dbusmenu"
 
 // ─── DBusMenu ────────────────────────────────────────────────────────────
 
-interface MenuNode {
+export interface MenuNode {
     id: number
     properties: Record<string, any>
     children: MenuNode[]
-}
-
-function fetchLayout(menuProxy: Gio.DBusProxy): MenuNode | null {
-    try {
-        const result = menuProxy.call_sync(
-            "GetLayout",
-            new GLib.Variant("(iias)", [0, -1, []]),
-            Gio.DBusCallFlags.NONE,
-            -1,
-            null,
-        )
-        const [, root] = (result as any).recursiveUnpack()
-        const toNode = (n: any): MenuNode => ({
-            id: n[0],
-            properties: n[1] || {},
-            children: (n[2] || []).map(toNode),
-        })
-        return toNode(root)
-    } catch (e) {
-        logError(e as Error, "tray: GetLayout failed")
-        return null
-    }
 }
 
 function sendMenuEvent(menuProxy: Gio.DBusProxy, id: number, eventId: string) {
@@ -167,6 +145,9 @@ function pixmapToGicon(pixmaps: [number, number, Uint8Array][]): Gio.Icon | null
 
 export class TrayItem {
     id: string
+    title = ""                         // "Steam" (Title o Id del ítem)
+    appId = ""                         // Id del ítem: "steam"
+    layout: MenuNode | null = null     // menú tal cual lo manda la app
     gicon: Gio.Icon | null = null
     menu_model: Gio.Menu | null = null
     action_group: Gio.SimpleActionGroup | null = null
@@ -200,6 +181,8 @@ export class TrayItem {
         }
 
         this._refreshIcon()
+        this.appId = this._readProp("Id") || ""
+        this.title = this._readProp("Title") || this.appId
 
         const menuPath = this._readProp("Menu")
         if (menuPath) {
@@ -215,14 +198,49 @@ export class TrayItem {
                 )
                 this.action_group = new Gio.SimpleActionGroup()
                 this.menu_model = new Gio.Menu()
-                this._refreshMenu()
+                this.refreshMenuAsync()
                 this._menuProxy.connect("g-signal", (_p: any, _sender: string, signal: string) => {
-                    if (signal === "LayoutUpdated") this._refreshMenu()
+                    if (signal === "LayoutUpdated") this.refreshMenuAsync()
                 })
             } catch (e) {
                 logError(e as Error, `tray: could not connect to menu for ${this.id}`)
             }
         }
+    }
+
+    // Pide el menú actualizado sin bloquear: algunas apps (Electron) lo
+    // arman recién al recibir AboutToShow. Las llamadas síncronas congelaban
+    // la barra mientras la app tardaba en contestar.
+    refreshMenuAsync(done?: () => void) {
+        const proxy = this._menuProxy
+        if (!proxy) return done?.()
+        proxy.call("AboutToShow", new GLib.Variant("(i)", [0]), Gio.DBusCallFlags.NONE, 500, null, () => {
+            proxy.call("GetLayout", new GLib.Variant("(iias)", [0, -1, []]), Gio.DBusCallFlags.NONE, 1500, null, (_p: any, res: any) => {
+                try {
+                    const [, root] = (proxy.call_finish(res) as any).recursiveUnpack()
+                    const toNode = (n: any): MenuNode => ({ id: n[0], properties: n[1] || {}, children: (n[2] || []).map(toNode) })
+                    this.layout = toNode(root)
+                    if (this.menu_model && this.action_group) populateMenu(this.menu_model, this.layout, proxy, this.action_group, "dbusmenu")
+                } catch (e) {
+                    logError(e as Error, `tray: GetLayout falló para ${this.id}`)
+                }
+                done?.()
+            })
+        })
+    }
+
+    // Clic en una opción del menú
+    click(id: number) {
+        if (this._menuProxy) sendMenuEvent(this._menuProxy, id, "clicked")
+    }
+
+    // Abrir la app; las de Ayatana (Steam…) suelen no implementarlo, y
+    // entonces se llama a onUnsupported.
+    activate(onUnsupported: () => void) {
+        if (!this._itemProxy) return onUnsupported()
+        this._itemProxy.call("Activate", new GLib.Variant("(ii)", [0, 0]), Gio.DBusCallFlags.NONE, 1000, null, (proxy: any, res: any) => {
+            try { proxy.call_finish(res) } catch { onUnsupported() }
+        })
     }
 
     private _readProp(name: string): any {
@@ -252,12 +270,6 @@ export class TrayItem {
         this.gicon = pix ?? Gio.ThemedIcon.new("image-missing-symbolic")
     }
 
-    private _refreshMenu() {
-        if (!this._menuProxy || !this.menu_model || !this.action_group) return
-        const layout = fetchLayout(this._menuProxy)
-        if (!layout) return
-        populateMenu(this.menu_model, layout, this._menuProxy, this.action_group, "dbusmenu")
-    }
 }
 
 // ─── Watcher / Tray singleton ───────────────────────────────────────────
