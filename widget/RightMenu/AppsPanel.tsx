@@ -2,7 +2,7 @@ import { Gtk, Gdk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import Hyprland from "../../lib/hyprland"
 import Apps from "../../lib/apps"
-import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
+import { AppContextMenu, attachAppMenu } from "../Shared/AppContextMenu"
 import pins from "../../lib/pins"
 
 // Altura del panel de apps sin expandir (~2 filas)
@@ -51,97 +51,26 @@ function tryGetAppInfo(id: string) {
 }
 
 function createContextMenu(widget: Gtk.Widget, appInfo: any) {
-    const sections: MenuSection[] = []
     const appId = appInfo.get_id ? appInfo.get_id() : ""
     const desktopAppInfo = tryGetAppInfo(appId)
-    const appName = desktopAppInfo?.get_display_name()
+    const name = desktopAppInfo?.get_display_name()
         || (appInfo.get_display_name && appInfo.get_display_name())
         || (appInfo.get_name && appInfo.get_name())
         || appId
 
-    // 1. Desktop Actions (Jump Lists)
-    if (desktopAppInfo) {
-        // @ts-ignore
-        const actions = desktopAppInfo.list_actions ? desktopAppInfo.list_actions() : []
-        if (actions.length > 0) {
-            sections.push({
-                title: appName,
-                items: actions.map((name: any) => ({
-                    label: (desktopAppInfo as any).get_action_name(name) || name,
-                    icon: "system-run-symbolic",
-                    onClick: () => {
-                        // @ts-ignore
-                        if (desktopAppInfo.launch_action) desktopAppInfo.launch_action(name, null)
-                    }
-                }))
-            })
-        }
-    }
-
-    // 2. Pinning Options
-    const pinningItems: MenuItem[] = []
-    const isPinnedMenu = pins.isPinnedMenu(appId)
-    const isPinnedSidebar = pins.isPinnedSidebar(appId)
-
-    pinningItems.push({
-        label: isPinnedMenu ? "Desanclar del menú" : "Anclar al menú",
-        icon: isPinnedMenu ? "bookmark-remove-symbolic" : "bookmark-new-symbolic",
-        onClick: () => pins.toggleMenu(appId)
-    })
-
-    pinningItems.push({
-        label: isPinnedSidebar ? "Desanclar del sidebar" : "Anclar al sidebar",
-        icon: isPinnedSidebar ? "pin-symbolic" : "bookmark-new-symbolic",
-        onClick: () => pins.toggleSidebar(appId)
-    })
-
-    sections.push({ items: pinningItems })
-
-    // 3. Window Management
     const desktopApp = apps.list.find((a: any) => a.id === appId)
     const match = desktopApp?.wm_class?.toLowerCase() || desktopApp?.name?.toLowerCase() || appId.split(".")[0]
-    const client = hyprland.clients.find((c: any) => (c.class?.toLowerCase() || "").includes(match))
+    const clients = hyprland.clients.filter((c: any) => (c.class?.toLowerCase() || "").includes(match))
 
-    const windowItems: MenuItem[] = []
-
-    windowItems.push({
-        label: "Nueva ventana",
-        icon: "window-new-symbolic",
-        onClick: () => {
-            const cmd = appInfo.get_executable ? appInfo.get_executable() : null
-            if (cmd) launchDetached(cmd)
-        }
-    })
-
-    if (client) {
-        const addr = client.address.startsWith("0x") ? client.address : `0x${client.address}`
-
-        windowItems.push({
-            label: "Minimizar",
-            icon: "window-minimize-symbolic",
-            onClick: () => hyprland.dispatch("movetoworkspacesilent", `special:minimized,address:${addr}`)
-        })
-
-        windowItems.push({
-            label: "Flotante",
-            icon: "window-pop-out-symbolic",
-            onClick: () => hyprland.dispatch("togglefloating", `address:${addr}`)
-        })
-
-        windowItems.push({
-            label: "Cerrar",
-            icon: "window-close-symbolic",
-            onClick: () => hyprland.dispatch("closewindow", `address:${addr}`),
-            isDangerous: true
-        })
-    }
-
-    sections.push({ items: windowItems })
-
-    // El nombre de la app va siempre arriba, tenga o no acciones propias
-    if (!sections[0].title) sections[0].title = appName
-
-    return MenuPopover(widget, sections, Gtk.PositionType.LEFT)
+    const cmd = appInfo.get_executable ? appInfo.get_executable() : null
+    return AppContextMenu(widget, {
+        name,
+        icon: appInfo.get_icon ? appInfo.get_icon() : null,
+        appId,
+        desktopApp: desktopAppInfo,
+        onNewWindow: cmd ? () => launchDetached(cmd) : undefined,
+        clients,
+    }, Gtk.PositionType.LEFT)
 }
 
 export default function AppsPanel() {
@@ -210,16 +139,8 @@ export default function AppsPanel() {
 
         btn.connect("clicked", () => launchApp(appInfo))
 
-        // Context Menu (Lazy Loaded)
-        let popover: any = null
-        const gesture = new Gtk.GestureClick({ button: 3 })
-        gesture.connect("released", () => {
-            if (!popover) {
-                popover = createContextMenu(btn, appInfo)
-            }
-            popover.popup()
-        })
-        btn.add_controller(gesture)
+        // Menú contextual: se rearma en cada apertura
+        attachAppMenu(btn, () => createContextMenu(btn, appInfo))
 
         return btn
     }

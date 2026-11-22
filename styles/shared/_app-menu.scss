@@ -1,0 +1,68 @@
+@use "../abstracts" as *;
+
+// Menú contextual de apps (AppContextMenu.tsx): encabezado con ícono y
+// estado, acciones sin íconos y fila de botones de ventana.
+popover.shared-popover.app-menu {
+  contents {
+    min-width: 220px;
+    padding: 6px;
+  }
+
+  .app-menu-header {
+    padding: 6px 8px 8px;
+  }
+
+  .app-menu-name {
+    @include text($text-md, 700);
+    color: var(--accent0);
+  }
+
+  .app-menu-status {
+    @include text($text-xs, 500);
+    color: theme-alpha(subtext0, 0.5);
+
+    &.running { color: var(--primary); }
+  }
+
+  .popover-separator {
+    margin: 4px 6px;
+  }
+
+  // Filas un poco más compactas que en el resto de popovers
+  .popover-item {
+    padding: 6px 10px;
+  }
+
+  .app-menu-win-row {
+    padding: 2px 0 0;
+  }
+
+  .app-menu-win-btn {
+    @include button-reset;
+    padding: 7px 4px 5px;
+    border-radius: $radius-md;
+    color: theme-alpha(subtext0, 0.8);
+    border: 1px solid transparent;
+
+    image {
+      font-size: $text-md;
+      color: var(--primary);
+    }
+
+    label {
+      @include text(10px, 500);
+    }
+
+    &:hover {
+      background-color: theme-alpha(overlay0, 0.9);
+      color: var(--accent0);
+      border-color: theme-alpha(primary, 0.12);
+    }
+
+    &.dangerous:hover {
+      @include danger-colors(background-color);
+
+      image { color: inherit; }
+    }
+  }
+}

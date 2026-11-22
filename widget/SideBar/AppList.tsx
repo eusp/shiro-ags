@@ -2,7 +2,7 @@ import { Gtk } from "ags/gtk4"
 import Hyprland, { Client } from "../../lib/hyprland"
 import Gio from "gi://Gio"
 import GioUnix from "gi://GioUnix"
-import { MenuPopover, MenuItem, MenuSection } from "../Shared/MenuPopover"
+import { AppContextMenu, attachAppMenu } from "../Shared/AppContextMenu"
 import pins from "../../lib/pins"
 import { findAppMatch, resolveAppIcon } from "../../lib/icons"
 
@@ -24,90 +24,20 @@ function launchDetached(command: string) {
     }
 }
 
-// !!! ASEGÚRATE DE QUE ESTA FUNCIÓN ESTÉ AQUÍ !!!
 function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
-    const sections: MenuSection[] = []
     const match = appInfo?.matches || client?.class?.toLowerCase() || ""
     const { desktopApp, astalId } = findAppMatch(match)
+    const clients = match ? hyprland.clients.filter(c => (c.class?.toLowerCase() || "").includes(match)) : []
+    if (client && !clients.includes(client)) clients.unshift(client)
 
-    if (desktopApp) {
-        const actions = desktopApp.list_actions ? desktopApp.list_actions() : []
-        if (actions.length > 0) {
-            sections.push({
-                title: desktopApp.get_display_name(),
-                items: actions.map(name => ({
-                    label: desktopApp?.get_action_name(name) || name,
-                    icon: "system-run-symbolic",
-                    onClick: () => {
-                        if (desktopApp?.launch_action) desktopApp.launch_action(name, null)
-                    }
-                }))
-            })
-        }
-    }
-
-    const windowItems: MenuItem[] = []
-    if (appInfo) {
-        windowItems.push({
-            label: "Nueva ventana",
-            icon: "window-new-symbolic",
-            onClick: () => launchDetached(appInfo.command)
-        })
-    }
-
-    if (client) {
-        const addr = client.address.startsWith("0x") ? client.address : `0x${client.address}`
-        windowItems.push({
-            label: "Minimizar",
-            icon: "window-minimize-symbolic",
-            onClick: () => hyprland.dispatch("movetoworkspacesilent", `special:minimized,address:${addr}`)
-        })
-        windowItems.push({
-            label: "Flotante",
-            icon: "window-pop-out-symbolic",
-            onClick: () => hyprland.dispatch("togglefloating", `address:${addr}`)
-        })
-        windowItems.push({
-            label: "Cerrar",
-            icon: "window-close-symbolic",
-            onClick: () => hyprland.dispatch("closewindow", `address:${addr}`),
-            isDangerous: true
-        })
-    }
-
-    const pinningItems: MenuItem[] = []
-    const appId = desktopApp?.get_id() || astalId || (appInfo?.id) || ""
-    const isPinnedMenu = pins.isPinnedMenu(appId)
-    const isPinnedSidebar = pins.isPinnedSidebar(appId)
-
-    pinningItems.push({
-        label: isPinnedMenu ? "Desanclar del menú" : "Anclar al menú",
-        icon: isPinnedMenu ? "bookmark-remove-symbolic" : "bookmark-new-symbolic",
-        onClick: () => pins.toggleMenu(appId)
-    })
-    pinningItems.push({
-        label: isPinnedSidebar ? "Desanclar del sidebar" : "Anclar al sidebar",
-        icon: isPinnedSidebar ? "pin-symbolic" : "bookmark-new-symbolic",
-        onClick: () => pins.toggleSidebar(appId)
-    })
-    sections.push({ items: pinningItems })
-
-    // El nombre de la app va siempre arriba, tenga o no acciones propias
-    const appName = desktopApp?.get_display_name() || appInfo?.tooltip || client?.class
-    if (appName && !sections[0].title) sections[0].title = appName
-
-    if (windowItems.length > 0) {
-        const existingLabels = sections.flatMap(s => s.items || []).map(i => (i.label ?? "").toLowerCase())
-        const hasNewWindow = existingLabels.some(l =>
-            (l.includes("nueva") && l.includes("ventana")) || (l.includes("new") && l.includes("window"))
-        )
-        const filteredWindowItems = hasNewWindow ? windowItems.filter(i => i.label !== "Nueva ventana") : windowItems
-        if (filteredWindowItems.length > 0) {
-            sections.push({ items: filteredWindowItems })
-        }
-    }
-
-    return MenuPopover(widget, sections, Gtk.PositionType.RIGHT)
+    return AppContextMenu(widget, {
+        name: desktopApp?.get_display_name() || appInfo?.tooltip || client?.class || "",
+        icon: desktopApp?.get_icon() || appInfo?.icon || resolveAppIcon(client?.class || ""),
+        appId: desktopApp?.get_id() || astalId || appInfo?.id || "",
+        desktopApp,
+        onNewWindow: appInfo ? () => launchDetached(appInfo.command) : undefined,
+        clients,
+    }, Gtk.PositionType.RIGHT)
 }
 
 export default function AppList() {
@@ -187,15 +117,7 @@ export default function AppList() {
                     }
                 })
 
-                let popover: any = null
-                const gesture = new Gtk.GestureClick({ button: 3 })
-                gesture.connect("released", () => {
-                    if (!popover) {
-                        popover = createContextMenu(btn, runningClient, app)
-                    }
-                    popover.popup()
-                })
-                btn.add_controller(gesture)
+                attachAppMenu(btn, () => createContextMenu(btn, runningClient, app))
                 container.append(btn)
             })
 
@@ -231,15 +153,7 @@ export default function AppList() {
                     }
                 })
 
-                let popover: any = null
-                const gesture = new Gtk.GestureClick({ button: 3 })
-                gesture.connect("released", () => {
-                    if (!popover) {
-                        popover = createContextMenu(btn, client)
-                    }
-                    popover.popup()
-                })
-                btn.add_controller(gesture)
+                attachAppMenu(btn, () => createContextMenu(btn, client))
                 container.append(btn)
             })
 
