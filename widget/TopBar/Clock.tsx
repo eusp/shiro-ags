@@ -2,6 +2,7 @@ import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
 import Gdk from "gi://Gdk?version=4.0"
 import Notifd from "../../lib/notifd"
+import CalendarView from "./CalendarView"
 
 const notifd = Notifd.get_default()
 
@@ -22,6 +23,18 @@ function getWidgetExactCoords(widget: Gtk.Widget) {
 // ═══════════════════════════════════════
 export const hasNotifications = () => notifd.get_notifications().length > 0
 export const notifCount = () => notifd.get_notifications().length
+
+// "ahora", "hace 5 min", "14:02" (hoy) o "21/11"; vacío si no se sabe la hora
+function notifTime(unix: number): string {
+    if (!unix) return ""
+    const diff = Math.floor(Date.now() / 1000) - unix
+    if (diff < 60) return "ahora"
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`
+    const t = GLib.DateTime.new_from_unix_local(unix)
+    const today = GLib.DateTime.new_now_local()
+    const sameDay = t.get_year() === today.get_year() && t.get_day_of_year() === today.get_day_of_year()
+    return (sameDay ? t.format("%H:%M") : t.format("%d/%m")) ?? ""
+}
 
 export default function Clock() {
     // ═══════════════════════════════════════
@@ -67,11 +80,27 @@ export default function Clock() {
     const notifList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4 })
     const notifRows: Gtk.Box[] = []
 
+    const notifEmpty = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 6,
+        cssClasses: ["popover-notif-empty"],
+        vexpand: true,
+        valign: Gtk.Align.CENTER,
+    })
+    notifEmpty.append(new Gtk.Image({ iconName: "notifications-disabled-symbolic", pixelSize: 28 }))
+    notifEmpty.append(new Gtk.Label({ label: "Sin notificaciones", cssClasses: ["popover-notif-empty-title"] }))
+    notifEmpty.append(new Gtk.Label({ label: "Todo al día", cssClasses: ["popover-notif-empty-sub"] }))
+    notifList.append(notifEmpty)
+
     for (let i = 0; i < Notifd.MAX_HISTORY; i++) {
         const item = new Gtk.Box({ spacing: 8, cssClasses: ["popover-notif-item"], visible: false })
         const icon = new Gtk.Image({ valign: Gtk.Align.CENTER })
         const textBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true })
-        const summary = new Gtk.Label({ halign: Gtk.Align.START, cssClasses: ["popover-notif-summary"], ellipsize: 3, xalign: 0 })
+        const summary = new Gtk.Label({ halign: Gtk.Align.START, hexpand: true, cssClasses: ["popover-notif-summary"], ellipsize: 3, xalign: 0 })
+        const timeLabel = new Gtk.Label({ cssClasses: ["popover-notif-time"], valign: Gtk.Align.START })
+        const summaryRow = new Gtk.Box({ spacing: 6 })
+        summaryRow.append(summary)
+        summaryRow.append(timeLabel)
         const body = new Gtk.Label({ halign: Gtk.Align.START, cssClasses: ["popover-notif-body"], ellipsize: 3, xalign: 0 })
         const dismissBtn = new Gtk.Button({
             cssClasses: ["popover-notif-dismiss"],
@@ -85,7 +114,7 @@ export default function Clock() {
             if (n) n.dismiss()
         })
 
-        textBox.append(summary)
+        textBox.append(summaryRow)
         textBox.append(body)
         item.append(icon)
         item.append(textBox)
@@ -101,14 +130,18 @@ export default function Clock() {
         // Badge con contador inline (a la derecha del reloj)
         notifBadge.label = count > 9 ? "9+" : String(count)
         notifBadge.visible = count > 0
+        notifEmpty.visible = count === 0
 
         notifRows.forEach((row, i) => {
             const n = ns[i]
             if (n) {
                 const icon = row.get_first_child() as Gtk.Image
                 const textBox = icon.get_next_sibling() as Gtk.Box
-                const summary = textBox.get_first_child() as Gtk.Label
-                const body = summary?.get_next_sibling() as Gtk.Label
+                const summaryRow = textBox.get_first_child() as Gtk.Box
+                const summary = summaryRow.get_first_child() as Gtk.Label
+                const timeLabel = summary.get_next_sibling() as Gtk.Label
+                const body = summaryRow.get_next_sibling() as Gtk.Label
+                timeLabel.label = notifTime(n.time)
                 icon.icon_name = n.app_icon || "dialog-information-symbolic"
                 summary.label = n.summary || ""
                 body.label = n.body || ""
@@ -126,12 +159,12 @@ export default function Clock() {
     // ═══════════════════════════════════════
     // POPUP UI
     // ═══════════════════════════════════════
-    const calendar = new Gtk.Calendar({ cssClasses: ["popover-calendar"] })
+    const calendar = CalendarView()
     const popover = new Gtk.Popover({ cssClasses: ["clock-popover", "shared-popover"], hasArrow: false })
 
     popover.set_child(
         <box spacing={16} cssClasses={["clock-popover-content"]}>
-            {calendar}
+            {calendar.widget}
             <box cssClasses={["popover-vertical-separator"]} />
             <box orientation={Gtk.Orientation.VERTICAL} spacing={12} cssClasses={["popover-clock-right"]}>
                 <box orientation={Gtk.Orientation.VERTICAL} cssClasses={["popover-clock-zone"]}>
@@ -164,14 +197,8 @@ export default function Clock() {
     popover.connect("notify::visible", () => {
         if (!popover.visible) return
 
-        calendar.select_day(GLib.DateTime.new_now_local())
+        calendar.reset()
         updateNotifications()
-        
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
-            calendar.grab_focus()
-            return GLib.SOURCE_REMOVE
-        })
-        calendar.grab_focus()
 
         // Edge detection
         popover.remove_css_class("edge-top")

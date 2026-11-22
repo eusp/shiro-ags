@@ -60,6 +60,7 @@ interface SavedNotification {
     app_icon: string
     summary: string
     body: string
+    time?: number
 }
 
 export class Notification {
@@ -68,6 +69,8 @@ export class Notification {
     app_icon: string
     summary: string
     body: string
+    /** Llegada en segundos Unix; 0 si vino de un historial sin hora */
+    time: number
     private _daemon: InstanceType<typeof Notifd>
 
     constructor(daemon: InstanceType<typeof Notifd>, id: number, data: {
@@ -75,6 +78,7 @@ export class Notification {
         app_icon: string
         summary: string
         body: string
+        time?: number
     }) {
         this._daemon = daemon
         this.id = id
@@ -82,6 +86,7 @@ export class Notification {
         this.app_icon = data.app_icon
         this.summary = data.summary
         this.body = data.body
+        this.time = data.time ?? Math.floor(Date.now() / 1000)
     }
 
     dismiss() {
@@ -239,6 +244,7 @@ class Notifd extends GObject.Object {
                         app_icon: icon,
                         summary: s.summary ?? "",
                         body: s.body ?? "",
+                        time: s.time ?? 0,
                     }),
                 )
                 // Their senders belong to a previous session: nobody waits for a close signal.
@@ -257,6 +263,7 @@ class Notifd extends GObject.Object {
             app_icon: n.app_icon,
             summary: n.summary,
             body: n.body,
+            time: n.time,
         }))
         try {
             Gio.File.new_for_path(HISTORY_FILE).replace_contents(
