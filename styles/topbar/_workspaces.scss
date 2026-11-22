@@ -33,4 +33,14 @@ window.TopBar .workspaces {
         0 0 16px theme-alpha(primary-alt, 0.15);
     }
   }
+
+  // Cruz "+" para agregar workspaces: tenue hasta el hover
+  .ws-add {
+    color: theme-alpha(subtext0, 0.5);
+    transition: $transition-fast;
+  }
+
+  .ws-dot-btn:hover .ws-add {
+    color: var(--accent0);
+  }
 }
