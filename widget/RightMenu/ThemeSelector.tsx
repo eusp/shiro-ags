@@ -189,184 +189,307 @@ function applyTheme(slug: string, data: ThemeColors, mode: WallpaperMode) {
         .finally(() => isApplying.set(false))
 }
 
-const WALLPAPER_HEIGHT = 140
-const CARD_WIDTH = 292  // 320 - 12px padding × 2 - borders
 
-// ─── Wallpaper Thumbnail ──────────────────────────────────────────────────────
+// ─── Layout ──────────────────────────────────────────────────────────────────
+// Vista previa grande con flechas, paleta en el borde inferior, modo y Aplicar.
+// Elegir un tema (flechas o rueda) solo lo previsualiza; se aplica con el botón.
 
-function WallpaperThumbnail(slug: string, baseColor: string): Gtk.Widget {
-    const pngPath = `${SHIRO_DIR}/wallpapers/${slug}.png`
+type Var<T> = ReturnType<typeof makeVar<T>>
 
-    if (GLib.file_test(pngPath, GLib.FileTest.EXISTS)) {
-        // Attempt 1: scale to width → crop top → Picture fill (top-aligned)
-        try {
-            const scaled = GdkPixbuf.Pixbuf.new_from_file_at_scale(pngPath, CARD_WIDTH, -1, true)
-            const cropH = Math.min(WALLPAPER_HEIGHT, scaled.get_height())
-            const cropped = (scaled as any).new_subpixbuf(0, 0, CARD_WIDTH, cropH)
-            const pic = Gtk.Picture.new_for_pixbuf(cropped)
-            pic.set_content_fit(Gtk.ContentFit.FILL)
-            pic.set_size_request(-1, WALLPAPER_HEIGHT)
-            pic.set_hexpand(true)
-            pic.add_css_class("theme-card-wallpaper")
-            return pic
-        } catch (e) {
-            console.warn(`[Theme:${slug}] subpixbuf failed:`, e)
-        }
-
-        // Attempt 2: exact dimensions (slight vertical squeeze) via Picture
-        try {
-            const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(pngPath, CARD_WIDTH, WALLPAPER_HEIGHT, false)
-            const pic = Gtk.Picture.new_for_pixbuf(pixbuf)
-            pic.set_content_fit(Gtk.ContentFit.FILL)
-            pic.set_size_request(-1, WALLPAPER_HEIGHT)
-            pic.set_hexpand(true)
-            pic.add_css_class("theme-card-wallpaper")
-            return pic
-        } catch (e) {
-            console.warn(`[Theme:${slug}] scale failed:`, e)
-        }
-
-        // Attempt 3: Gtk.Picture directly (centered crop — always works)
-        try {
-            const pic = new Gtk.Picture()
-            pic.set_filename(pngPath)
-            pic.set_content_fit(Gtk.ContentFit.COVER)
-            pic.set_size_request(-1, WALLPAPER_HEIGHT)
-            pic.set_hexpand(true)
-            pic.add_css_class("theme-card-wallpaper")
-            return pic
-        } catch { }
-    }
-
-    // Final fallback: solid base-color block
-    const [r, g, b] = hexToRgbParts(baseColor)
-    const area = new Gtk.DrawingArea()
-    area.set_size_request(-1, WALLPAPER_HEIGHT)
-    area.set_hexpand(true)
-    area.add_css_class("theme-card-no-wallpaper")
-    area.set_draw_func((_w, cr, w, h) => {
-        cr.setSourceRGB(r / 255, g / 255, b / 255)
-        cr.rectangle(0, 0, w, h)
-        cr.fill()
-    })
-    return area
+function wallpaperPath(slug: string, ext: "png" | "mp4") {
+    return `${SHIRO_DIR}/wallpapers/${slug}.${ext}`
 }
 
-// ─── Wallpaper Mode Icon Button ─────────────────────────────────────────────
-// Applies this card's theme with the given wallpaper mode (animated/static).
-// These are the card's only clickable elements — the card itself is now a
-// plain (non-interactive) box, not a button.
+function hasFile(path: string) {
+    return GLib.file_test(path, GLib.FileTest.EXISTS)
+}
 
-function WallpaperModeButton(
-    iconName: string,
-    tooltip: string,
-    mode: WallpaperMode,
-    slug: string,
-    data: ThemeColors,
-    activeSlug: ReturnType<typeof makeVar<string>>,
-): Gtk.Button {
-    const btn = new Gtk.Button({
-        cssClasses: ["wallpaper-mode-icon-btn"],
-        tooltipText: tooltip,
-        child: new Gtk.Image({ iconName, pixelSize: 11 }),
-    })
+// Proporción de la pantalla (16:10 en la PC, la que toque en la laptop), para
+// que la vista previa recorte igual que hyprpaper al poner el fondo.
+function screenAspect(): number {
+    const monitors = Gdk.Display.get_default()?.get_monitors()
+    const mon = monitors?.get_item(0) as Gdk.Monitor | null
+    const geo = mon?.get_geometry()
+    return geo && geo.height > 0 ? geo.width / geo.height : 16 / 10
+}
 
-    const update = () => {
-        const active = activeSlug.get() === slug && wallpaperMode.get() === mode
-        if (active) btn.add_css_class("active")
-        else btn.remove_css_class("active")
+// Wallpapers reducidos una sola vez (ancho 640, sin deformar) y cacheados
+const pixbufCache = new Map<string, GdkPixbuf.Pixbuf | null>()
+function wallpaperPixbuf(slug: string): GdkPixbuf.Pixbuf | null {
+    if (!pixbufCache.has(slug)) {
+        let pb: GdkPixbuf.Pixbuf | null = null
+        const png = wallpaperPath(slug, "png")
+        if (hasFile(png)) {
+            try { pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(png, 640, -1, true) }
+            catch (e) { console.warn(`[Theme:${slug}] no se pudo cargar el wallpaper:`, e) }
+        }
+        pixbufCache.set(slug, pb)
     }
-    update()
-    activeSlug.subscribe(update)
-    wallpaperMode.subscribe(update)
+    return pixbufCache.get(slug) ?? null
+}
 
-    btn.connect("clicked", () => applyTheme(slug, data, mode))
+// Dibuja el wallpaper cubriendo w×h centrado (como hyprpaper); sin wallpaper,
+// el color base del tema con una franja de su color principal.
+function paintTheme(cr: any, slug: string, data: ThemeColors, w: number, h: number) {
+    const pb = wallpaperPixbuf(slug)
+    if (pb) {
+        const pw = pb.get_width(), ph = pb.get_height()
+        const s = Math.max(w / pw, h / ph)
+        cr.save()
+        cr.translate((w - pw * s) / 2, (h - ph * s) / 2)
+        cr.scale(s, s)
+        Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+        cr.paint()
+        cr.restore()
+        return
+    }
+    const [r1, g1, b1] = hexToRgbParts(data.base)
+    const [r2, g2, b2] = hexToRgbParts(data.primary)
+    cr.setSourceRGB(r1 / 255, g1 / 255, b1 / 255)
+    cr.paint()
+    cr.moveTo(w * 0.45, 0); cr.lineTo(w, 0); cr.lineTo(w, h); cr.lineTo(w * 0.15, h)
+    cr.closePath()
+    cr.setSourceRGBA(r2 / 255, g2 / 255, b2 / 255, 0.35)
+    cr.fill()
+}
+
+function NavArrow(label: string, tooltip: string, halign: Gtk.Align, onClick: () => void): Gtk.Button {
+    const btn = new Gtk.Button({
+        cssClasses: ["theme-nav-arrow"],
+        tooltipText: tooltip,
+        halign,
+        valign: Gtk.Align.CENTER,
+        child: new Gtk.Label({ label }),
+    })
+    btn.connect("clicked", onClick)
     return btn
 }
 
-// ─── Theme Card ───────────────────────────────────────────────────────────────
+// ─── Vista previa ────────────────────────────────────────────────────────────
 
-function ThemeCard(slug: string, data: ThemeColors, activeSlug: ReturnType<typeof makeVar<string>>): Gtk.Widget {
-    const wallpaper = WallpaperThumbnail(slug, data.base)
+function Preview(themes: { slug: string; data: ThemeColors }[], selected: Var<number>): Gtk.Widget {
+    const aspect = screenAspect()
+    const FADE_MS = 200
 
-    const nameLabel = new Gtk.Label({ label: data.name || slug, xalign: 0, hexpand: true, cssClasses: ["theme-card-name"] })
-    const activeBadge = new Gtk.Label({ label: "activo", cssClasses: ["theme-card-active-badge"], visible: false })
-
-    const modeIcons = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 4, cssClasses: ["wallpaper-mode-icons"] })
-    modeIcons.append(WallpaperModeButton("video-x-generic-symbolic", "Aplicar con fondo animado (.mp4)", "animated", slug, data, activeSlug))
-    modeIcons.append(WallpaperModeButton("image-x-generic-symbolic", "Aplicar con fondo estático (.png)", "static", slug, data, activeSlug))
-
-    const nameRow = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
-        spacing: 6,
-        cssClasses: ["theme-card-info"],
-        valign: Gtk.Align.END,
-        hexpand: true,
+    // El alto sigue al ancho real para mantener la proporción de la pantalla
+    const image = new Gtk.DrawingArea({ hexpand: true, cssClasses: ["theme-preview-image"] })
+    image.set_content_height(Math.round(300 / aspect))
+    image.connect("resize", (_a, w) => {
+        const want = Math.round(w / aspect)
+        if (image.get_content_height() !== want)
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => { image.set_content_height(want); return false })
     })
-    nameRow.append(nameLabel)
-    nameRow.append(activeBadge)
-    nameRow.append(modeIcons)
 
-    // Overlay name + mode buttons on top of the wallpaper image
-    const card = new Gtk.Overlay({ cssClasses: ["theme-card"] })
-    card.set_child(wallpaper)
-    card.add_overlay(nameRow)
-
-    const updateActive = () => {
-        const active = activeSlug.get() === slug
-        if (active) { card.add_css_class("active-theme"); activeBadge.set_visible(true) }
-        else { card.remove_css_class("active-theme"); activeBadge.set_visible(false) }
+    // Fundido entre el tema anterior y el nuevo
+    let shown = selected.get()
+    let previous = -1
+    let fadeStart = 0
+    image.set_draw_func((_a, cr, w, h) => {
+        const t = previous < 0 ? 1 : Math.min(1, (GLib.get_monotonic_time() / 1000 - fadeStart) / FADE_MS)
+        if (t < 1) paintTheme(cr, themes[previous].slug, themes[previous].data, w, h)
+        cr.pushGroup()
+        paintTheme(cr, themes[shown].slug, themes[shown].data, w, h)
+        cr.popGroupToSource()
+        cr.paintWithAlpha(t)
+    })
+    const fadeTo = (idx: number) => {
+        if (idx === shown) return
+        previous = shown
+        shown = idx
+        fadeStart = GLib.get_monotonic_time() / 1000
+        image.add_tick_callback(() => {
+            image.queue_draw()
+            const done = GLib.get_monotonic_time() / 1000 - fadeStart >= FADE_MS
+            if (done) previous = -1
+            return !done
+        })
     }
-    updateActive()
-    activeSlug.subscribe(updateActive)
 
-    return card
+    const step = (d: number) => selected.set((selected.get() + d + themes.length) % themes.length)
+
+    const nameLabel = new Gtk.Label({ xalign: 0, hexpand: true, cssClasses: ["theme-preview-name"] })
+    const badge = new Gtk.Label({ label: "activo", cssClasses: ["theme-preview-badge"], valign: Gtk.Align.CENTER })
+    const caption = new Gtk.Box({ cssClasses: ["theme-preview-caption"], valign: Gtk.Align.END, spacing: 6, canTarget: false })
+    caption.append(nameLabel)
+    caption.append(badge)
+
+    const overlay = new Gtk.Overlay({ cssClasses: ["theme-preview"], overflow: Gtk.Overflow.HIDDEN, hexpand: true })
+    overlay.set_child(image)
+    overlay.add_overlay(caption)
+    overlay.add_overlay(NavArrow("‹", "Tema anterior", Gtk.Align.START, () => step(-1)))
+    overlay.add_overlay(NavArrow("›", "Tema siguiente", Gtk.Align.END, () => step(1)))
+
+    // Rueda del mouse sobre la vista previa = cambiar de tema
+    const wheel = new Gtk.EventControllerScroll({ flags: Gtk.EventControllerScrollFlags.VERTICAL | Gtk.EventControllerScrollFlags.DISCRETE })
+    wheel.connect("scroll", (_c, _dx, dy) => { if (dy !== 0) step(dy > 0 ? 1 : -1); return true })
+    overlay.add_controller(wheel)
+
+    const update = () => {
+        const idx = selected.get()
+        const { slug, data } = themes[idx]
+        fadeTo(idx)
+        nameLabel.set_label(data.name || slug)
+        badge.set_visible(slug === currentThemeName.get())
+    }
+    update()
+    selected.subscribe(update)
+    currentThemeName.subscribe(update)
+    return overlay
 }
 
-// ─── Main Widget ──────────────────────────────────────────────────────────────
+// ─── Modo de fondo + Aplicar ─────────────────────────────────────────────────
+
+function ModeSwitch(themes: { slug: string; data: ThemeColors }[], selected: Var<number>, mode: Var<WallpaperMode>): Gtk.Widget {
+    const make = (m: WallpaperMode, icon: string) => {
+        const btn = new Gtk.Button({
+            cssClasses: ["theme-mode-btn"],
+            child: new Gtk.Image({ iconName: icon, pixelSize: 13 }),
+        })
+        btn.connect("clicked", () => mode.set(m))
+        return btn
+    }
+    const animated = make("animated", "video-x-generic-symbolic")
+    const still = make("static", "image-x-generic-symbolic")
+    still.set_tooltip_text("Fondo estático (.png)")
+
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, cssClasses: ["theme-mode-switch"], spacing: 2 })
+    box.append(animated)
+    box.append(still)
+
+    // Lo que eligió el usuario; un tema sin .mp4 fuerza "estático" solo mientras
+    // está seleccionado, y al volver a uno con video se recupera esta elección.
+    let userChoice = mode.get()
+    const canAnimate = () => hasFile(wallpaperPath(themes[selected.get()].slug, "mp4"))
+    mode.subscribe(m => { if (canAnimate()) userChoice = m })
+
+    const update = () => {
+        const animatable = canAnimate()
+        animated.set_sensitive(animatable)
+        animated.set_tooltip_text(animatable ? "Fondo animado (.mp4)" : "Este tema no tiene fondo animado")
+        const want = animatable ? userChoice : "static"
+        if (mode.get() !== want) { mode.set(want); return }
+        const m = mode.get()
+        m === "animated" ? animated.add_css_class("active") : animated.remove_css_class("active")
+        m === "static" ? still.add_css_class("active") : still.remove_css_class("active")
+    }
+    update()
+    selected.subscribe(update)
+    mode.subscribe(update)
+    return box
+}
+
+// ─── Columna lateral: número, paleta y modo ─────────────────────────────────
+
+function SidePanel(themes: { slug: string; data: ThemeColors }[], selected: Var<number>, mode: Var<WallpaperMode>): Gtk.Widget {
+    const counter = new Gtk.Label({ cssClasses: ["theme-side-counter"] })
+
+    // Paleta: círculos con los colores principales, en columna
+    const DOT = 10, GAP = 5
+    const colorsOf = (d: ThemeColors) => [d.primary, d.primaryAlt, d.accent0, d.accent1, d.accent2, d.accent3]
+    const palette = new Gtk.DrawingArea({
+        widthRequest: DOT + 2,
+        heightRequest: 6 * DOT + 5 * GAP,
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        vexpand: true,
+        tooltipText: "Paleta del tema",
+    })
+    palette.set_draw_func((_a, cr, w) => {
+        colorsOf(themes[selected.get()].data).forEach((hex, i) => {
+            const [r, g, b] = hexToRgbParts(hex)
+            cr.arc(w / 2, i * (DOT + GAP) + DOT / 2, DOT / 2, 0, 2 * Math.PI)
+            cr.setSourceRGB(r / 255, g / 255, b / 255)
+            cr.fillPreserve()
+            cr.setSourceRGBA(1, 1, 1, 0.12)
+            cr.setLineWidth(1)
+            cr.stroke()
+        })
+    })
+
+    const col = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, cssClasses: ["theme-side"], spacing: 8 })
+    col.append(counter)
+    col.append(palette)
+    col.append(ModeSwitch(themes, selected, mode))
+
+    const update = () => {
+        counter.set_label(`${selected.get() + 1}/${themes.length}`)
+        palette.queue_draw()
+    }
+    update()
+    selected.subscribe(update)
+    return col
+}
+
+function ApplyButton(themes: { slug: string; data: ThemeColors }[], selected: Var<number>, mode: Var<WallpaperMode>): Gtk.Widget {
+    const label = new Gtk.Label()
+    const btn = new Gtk.Button({ cssClasses: ["theme-apply-btn"], child: label })
+    btn.connect("clicked", () => {
+        const { slug, data } = themes[selected.get()]
+        applyTheme(slug, data, mode.get())
+    })
+    const update = () => {
+        const isCurrent = themes[selected.get()].slug === currentThemeName.get()
+            && mode.get() === wallpaperMode.get()
+        if (isApplying.get()) label.set_label("Aplicando…")
+        else if (isCurrent) label.set_label("Tema actual")
+        else label.set_label("Aplicar tema")
+        btn.set_sensitive(!isApplying.get() && !isCurrent)
+    }
+    update()
+    selected.subscribe(update)
+    mode.subscribe(update)
+    currentThemeName.subscribe(update)
+    wallpaperMode.subscribe(update)
+    isApplying.subscribe(update)
+    return btn
+}
+
+// ─── Widget principal ────────────────────────────────────────────────────────
 
 export default function ThemeSelector() {
     const themes = loadThemes()
+    const startIdx = Math.max(0, themes.findIndex(t => t.slug === currentThemeName.get()))
+    const selected = makeVar(startIdx)
+    const pendingMode = makeVar<WallpaperMode>(wallpaperMode.get())
 
+    // Botón que abre/cierra el panel
     const currentLabel = new Gtk.Label({ cssClasses: ["theme-toggle-current"] })
     currentThemeName.subscribe(slug => currentLabel.set_label(slug))
     currentLabel.set_label(currentThemeName.get())
-
     const arrowLabel = new Gtk.Label({ label: "›", cssClasses: ["theme-toggle-arrow"] })
 
     const inner = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
     inner.append(new Gtk.Label({ label: "Tema", cssClasses: ["theme-toggle-label"], hexpand: true, xalign: 0 }))
     inner.append(currentLabel)
     inner.append(arrowLabel)
-
     const toggleBtn = new Gtk.Button({ child: inner, cssClasses: ["theme-selector-toggle"], hexpand: true })
 
-    // Cards
-    const cardsBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6, cssClasses: ["theme-cards-container"], marginTop: 4 })
-    themes.forEach(({ slug, data }) => cardsBox.append(ThemeCard(slug, data, currentThemeName)))
-
-    const applyingLabel = new Gtk.Label({
-        label: "⟳  aplicando en segundo plano...",
-        cssClasses: ["applying-indicator"],
-        visible: false,
-        xalign: 0,
-    })
-    isApplying.subscribe(v => applyingLabel.set_visible(v))
-
-    const scroll = new Gtk.ScrolledWindow({
-        vscrollbarPolicy: Gtk.PolicyType.AUTOMATIC,
-        hscrollbarPolicy: Gtk.PolicyType.NEVER,
-        maxContentHeight: 380,
-        propagateNaturalHeight: true,
-        child: cardsBox,
+    // Panel
+    const panel = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 10,
+        cssClasses: ["theme-panel"],
         visible: false,
     })
+    if (themes.length === 0) {
+        panel.append(new Gtk.Label({ label: "No hay temas en ~/.config/shiro-theme/themes", cssClasses: ["theme-empty"] }))
+    } else {
+        const row = new Gtk.Box({ spacing: 8 })
+        row.append(Preview(themes, selected))
+        row.append(SidePanel(themes, selected, pendingMode))
+        panel.append(row)
+        panel.append(ApplyButton(themes, selected, pendingMode))
+    }
 
     toggleBtn.connect("clicked", () => {
         const next = !themeExpanded.get()
         themeExpanded.set(next)
-        scroll.set_visible(next)
+        panel.set_visible(next)
         if (next) {
+            // Al abrir, empieza en el tema activo con su modo actual
+            const idx = themes.findIndex(t => t.slug === currentThemeName.get())
+            if (idx >= 0) selected.set(idx)
+            pendingMode.set(wallpaperMode.get())
             toggleBtn.add_css_class("expanded")
             arrowLabel.set_label("⌄")
         } else {
@@ -375,10 +498,8 @@ export default function ThemeSelector() {
         }
     })
 
-    const root = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4, cssClasses: ["theme-selector"] })
+    const root = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, cssClasses: ["theme-selector"] })
     root.append(toggleBtn)
-    root.append(scroll)
-    root.append(applyingLabel)
-
+    root.append(panel)
     return root
 }
