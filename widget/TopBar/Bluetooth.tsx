@@ -1,6 +1,7 @@
 import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib"
 import Gio from "gi://Gio"
+import { execAsync } from "ags/process"
 import Bluetooth, { btLog } from "../../lib/bluetooth"
 import { MenuPopover } from "../Shared/MenuPopover"
 import { stateFile } from "../../lib/localState"
@@ -61,7 +62,13 @@ export default function BluetoothIndicator() {
     log(`widget creado (AGS pid ${Gio.Credentials.new().get_unix_pid()})`)
 
     const icon = new Gtk.Image()
-    const menubutton = new Gtk.MenuButton({ child: icon })
+    // "HFP" en naranja cuando los auriculares están en manos libres (mono,
+    // 16 kHz): así se sabe al instante por qué suena mal.
+    const hfpLabel = new Gtk.Label({ label: "HFP", cssClasses: ["bt-hfp-label"], visible: false })
+    const iconBox = new Gtk.Box({ spacing: 3 })
+    iconBox.append(icon)
+    iconBox.append(hfpLabel)
+    const menubutton = new Gtk.MenuButton({ child: iconBox })
 
     let isScanning = false
     let currentDiscovered: Map<string, SavedDevice> = new Map()
@@ -105,6 +112,78 @@ export default function BluetoothIndicator() {
     toggleRow.append(toggleLabel)
     toggleRow.append(scanBtn)
     toggleRow.append(powerSwitch)
+
+    // ─── Modo de los auriculares: música (A2DP) ↔ micrófono (manos libres) ──
+    // El cambio automático de WirePlumber está desactivado (se colgaba al
+    // cambiar con varias apps sonando), así que el micrófono se activa aquí.
+    // La fila está siempre (solo se desactiva) para que el popover no cambie
+    // de alto: Hyprland lo descarta si crece después de abierto.
+    const modeLabel = new Gtk.Label({ label: "Micrófono", xalign: 0, tooltipText: "Activa el micrófono de los auriculares (el sonido pasa a mono, de baja calidad)" })
+    const modeSwitch = new Gtk.Switch({
+        valign: Gtk.Align.CENTER,
+        halign: Gtk.Align.END,
+        hexpand: true,
+        cssClasses: ["compact-switch"],
+        sensitive: false,
+    })
+    const modeRow = new Gtk.Box({ spacing: 8, cssClasses: ["popover-row"] })
+    modeRow.append(modeLabel)
+    modeRow.append(modeSwitch)
+
+    type BtCard = { name: string; active: string; a2dp: string | null; headset: string | null }
+    let card: BtCard | null = null
+    let syncingMode = false
+
+    const readCard = async (): Promise<BtCard | null> => {
+        let out = ""
+        try { out = await execAsync(["pactl", "list", "cards"]) } catch { return null }
+        for (const block of out.split(/^Card #/m)) {
+            const name = block.match(/^\s*Name: (bluez_card\.\S+)/m)?.[1]
+            if (!name) continue
+            const active = block.match(/^\s*Active Profile: (\S+)/m)?.[1] ?? ""
+            // El de mayor prioridad de cada tipo (AAC > SBC-XQ > SBC; mSBC > CVSD)
+            const best = (prefix: string) => {
+                let top: string | null = null, topPrio = -1
+                for (const m of block.matchAll(/^\s+([\w-]+): .*priority: (\d+), available: yes/gm)) {
+                    if (m[1].startsWith(prefix) && +m[2] > topPrio) { top = m[1]; topPrio = +m[2] }
+                }
+                return top
+            }
+            return { name, active, a2dp: best("a2dp-sink"), headset: best("headset-head-unit") }
+        }
+        return null
+    }
+
+    const syncMode = async () => {
+        card = await readCard()
+        const hfp = !!card?.active.startsWith("headset")
+        hfpLabel.visible = hfp
+        if (hfp) iconBox.add_css_class("bt-hfp")
+        else iconBox.remove_css_class("bt-hfp")
+        menubutton.tooltipText = hfp
+            ? "Auriculares en manos libres: micrófono activo, sonido mono de baja calidad"
+            : ""
+        syncingMode = true
+        modeSwitch.sensitive = !!(card?.a2dp && card?.headset)
+        modeSwitch.set_active(hfp)
+        syncingMode = false
+    }
+
+    modeSwitch.connect("notify::active", () => {
+        if (syncingMode || !card) return
+        const target = modeSwitch.active ? card.headset : card.a2dp
+        if (!target) return
+        log(`modo de auriculares → ${target}`)
+        execAsync(["pactl", "set-card-profile", card.name, target])
+            .catch((e) => showError(`No se pudo cambiar el modo: ${e}`))
+            .finally(() => syncMode())
+    })
+
+    syncMode()
+    GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 3, () => {
+        syncMode()
+        return GLib.SOURCE_CONTINUE
+    })
 
     // Aviso breve de error (falla al conectar/emparejar), se oculta solo.
     // Vive dentro del scrolled de alto fijo, así que mostrarlo/ocultarlo
@@ -485,6 +564,7 @@ export default function BluetoothIndicator() {
     const topSection = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2, widthRequest: 220 })
     topSection.append(statusRow)
     topSection.append(toggleRow)
+    topSection.append(modeRow)
 
     const popover = MenuPopover(menubutton, [
         { title: "Bluetooth", customChild: topSection },

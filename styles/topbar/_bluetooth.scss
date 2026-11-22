@@ -24,3 +24,14 @@
     font-size: $text-xs;
   }
 }
+
+// Auriculares en manos libres (HFP): ícono y "HFP" en naranja, color fijo
+// para que se vea con cualquier tema (como la batería).
+window.TopBar .bt-hfp image,
+window.TopBar .bt-hfp label {
+  color: #fb923c;
+}
+
+window.TopBar .bt-hfp-label {
+  @include text($text-xs, 700, $font-mono);
+}
