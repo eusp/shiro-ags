@@ -12,6 +12,13 @@ const MIN_HEIGHT = 140
 
 const hyprland = Hyprland.get_default()
 
+// Super+N (ags request notes): trae las notas por encima de las ventanas
+// para anotar sin cambiar de workspace; otra vez o Esc las devuelve atrás.
+let toggleFrontFn: (() => void) | null = null
+export function toggleNotesFront() {
+    toggleFrontFn?.()
+}
+
 export default function Notes(gdkmonitor: Gdk.Monitor) {
     const { TOP, LEFT } = Astal.WindowAnchor
     const stored = getNotes()
@@ -108,9 +115,9 @@ export default function Notes(gdkmonitor: Gdk.Monitor) {
         const shift = (state & Gdk.ModifierType.SHIFT_MASK) !== 0
         switch (keyval) {
             case Gdk.KEY_Escape:
-                if (!editor.isOpen()) return false
-                goBack()
-                return true
+                if (editor.isOpen()) { goBack(); return true }
+                if (front) { setFront(false); return true }
+                return false
             case Gdk.KEY_Tab:
                 editor.shiftDepth(shift ? -1 : 1)
                 return true
@@ -254,6 +261,18 @@ export default function Notes(gdkmonitor: Gdk.Monitor) {
     win!.set_default_size(1, 1)
     handle!.add_controller(moveGesture)
     grip!.add_controller(resizeGesture)
+
+    // Al frente: capa OVERLAY y teclado para las notas. Atrás: capa BOTTOM y
+    // el foco vuelve solo a la ventana que estaba enfocada.
+    let front = false
+    function setFront(on: boolean) {
+        front = on
+        win.layer = on ? Astal.Layer.OVERLAY : Astal.Layer.BOTTOM
+        win.keymode = on ? Astal.Keymode.EXCLUSIVE : Astal.Keymode.ON_DEMAND
+        on ? noteBox.add_css_class("front") : noteBox.remove_css_class("front")
+        if (on) view.grab_focus()
+    }
+    toggleFrontFn = () => setFront(!front)
 
     editor.load()
     win!.show()

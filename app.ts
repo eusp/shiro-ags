@@ -6,7 +6,7 @@ import style from "./style.scss"
 import TopBar from "./widget/TopBar"
 import SideBar from "./widget/SideBar"
 import RightMenu from "./widget/RightMenu"
-import Notes from "./widget/Notes"
+import Notes, { toggleNotesFront } from "./widget/Notes"
 import NotificationPopup from "./widget/Shared/NotificationPopup"
 import BatteryAlertOverlay from "./widget/Shared/BatteryAlertOverlay"
 import Battery from "./lib/battery"
@@ -89,6 +89,11 @@ app.start({
             const critical = argv[2] === "critical"
             ;(Battery.get_default() as any).emit("low-battery", pct, critical)
             response(`ok: ${critical ? "critical" : "low"} ${pct}%`)
+            return
+        }
+        if (argv[0] === "notes") {
+            toggleNotesFront()
+            response("ok")
             return
         }
         response(`unknown request: ${argv.join(" ")}`)
