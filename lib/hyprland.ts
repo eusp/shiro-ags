@@ -84,12 +84,14 @@ export class Client {
     class: string
     title: string
     workspace: HyprWorkspace
+    focusHistoryID: number  // 0 = la enfocada ahora, 1 = la anterior…
 
     constructor(data: any) {
         this.address = data?.address || ""
         this.class = data?.class || ""
         this.title = data?.title || ""
         this.workspace = { id: data?.workspace?.id ?? 0, name: data?.workspace?.name ?? "" }
+        this.focusHistoryID = data?.focusHistoryID ?? 999
     }
 
     focus() {

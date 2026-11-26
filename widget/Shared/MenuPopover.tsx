@@ -31,15 +31,13 @@ export function MenuPopover(
 
     popover.set_position(position)
 
-    popover.connect("notify::visible", () => {
-        if (!popover.visible || !parent) return
-        const currentPosition = popover.get_position()
-        if (currentPosition === Gtk.PositionType.BOTTOM) {
-            popover.add_css_class("edge-top")
-        } else if (currentPosition === Gtk.PositionType.RIGHT) {
-            popover.add_css_class("edge-left")
-        }
-    })
+    // Forma "pegada al borde" desde el inicio: si se agregaba al mostrarse,
+    // el primer cuadro salía sin ella y el menú saltaba al redibujarse
+    // (por ejemplo, al pasar el mouse por encima)
+    if (parent) {
+        if (position === Gtk.PositionType.BOTTOM) popover.add_css_class("edge-top")
+        else if (position === Gtk.PositionType.RIGHT) popover.add_css_class("edge-left")
+    }
 
     const mainBox = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,

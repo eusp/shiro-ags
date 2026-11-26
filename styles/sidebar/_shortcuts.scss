@@ -41,3 +41,95 @@ window.SideBar .shortcut-btn {
     }
   }
 }
+
+// Puntitos bajo el ícono: una ventana cada uno (apps con 2 o más)
+// El ícono sube 6 px para dejar lugar a los puntos; el botón pierde esos
+// 6 px abajo, así su alto no cambia
+window.SideBar .shortcut-btn.multi {
+  padding-bottom: 2px;
+
+  overlay > image { margin-bottom: 6px; }
+}
+
+window.SideBar .shortcut-btn .window-dots {
+  min-height: 4px;
+}
+
+window.SideBar .shortcut-btn .window-dot {
+  min-width: 4px;
+  min-height: 4px;
+  border-radius: 50%;
+  background: theme-alpha(primary, 0.8);
+}
+
+// Lista de ventanas en el menú contextual (AppContextMenu.tsx)
+popover.shared-popover.app-menu {
+  // Borde fijo de 1 px (2 px a la izquierda) en todos los estados, para que
+  // la fila no cambie de tamaño con el hover ni al marcarse como actual
+  .popover-item.app-menu-win,
+  .popover-item.app-menu-win:hover {
+    border: 1px solid transparent;
+    border-left-width: 2px;
+  }
+
+  .popover-item.app-menu-win:hover {
+    border-color: theme-alpha(primary, 0.12);
+  }
+
+  // La ventana enfocada: barra de color a la izquierda, como en la sidebar
+  .popover-item.app-menu-win {
+    &.current {
+      color: var(--accent0);
+      border-left-color: var(--primary);
+      background: theme-alpha(primary, 0.1);
+    }
+  }
+
+  .app-menu-private {
+    color: var(--primary);
+  }
+
+  // Botones sobre la fila: fondo como el hover de la fila, para tapar el
+  // final del título que queda debajo
+  .app-menu-win-actions {
+    padding: 2px;
+    border-radius: $radius-md;
+    background-color: theme-alpha(overlay0, 0.95);
+  }
+
+  // Cada acción: ícono claro y fondo de color al pasar el mouse
+  .app-menu-win-btn-sm {
+    @include button-reset($transition-fast);
+    padding: 5px;
+    border-radius: $radius-sm;
+
+    image { color: theme-alpha(accent0, 0.85); }
+
+    &:hover {
+      background: theme-alpha(primary, 0.25);
+
+      image { color: var(--accent0); }
+    }
+
+    &.dangerous:hover {
+      background: theme-alpha(danger, 0.2);
+
+      image { color: var(--danger); }
+    }
+  }
+
+  // Número de workspace (u ojo tachado si está oculta)
+  .app-menu-ws-badge {
+    @include text(10px, 700, $font-mono);
+    color: theme-alpha(subtext0, 0.6);
+    min-width: 18px;
+    padding: 1px 4px;
+    border-radius: $radius-xs;
+    background: theme-alpha(surface2, 0.5);
+
+    &.hidden {
+      background: transparent;
+      color: theme-alpha(subtext0, 0.4);
+    }
+  }
+}

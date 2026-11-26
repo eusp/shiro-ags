@@ -2,7 +2,7 @@ import { Gtk } from "ags/gtk4"
 import Hyprland, { Client } from "../../lib/hyprland"
 import Gio from "gi://Gio"
 import GioUnix from "gi://GioUnix"
-import { AppContextMenu, attachAppMenu } from "../Shared/AppContextMenu"
+import { AppContextMenu, attachAppMenu, toggleAppWindows } from "../Shared/AppContextMenu"
 import pins from "../../lib/pins"
 import { findAppMatch, resolveAppIcon } from "../../lib/icons"
 
@@ -38,6 +38,16 @@ function createContextMenu(widget: Gtk.Widget, client?: Client, appInfo?: any) {
         onNewWindow: appInfo ? () => launchDetached(appInfo.command) : undefined,
         clients,
     }, Gtk.PositionType.RIGHT)
+}
+
+// Ícono con un puntito por ventana abierta debajo (hasta 3), si hay 2 o más
+function withDots(icon: Gtk.Widget, count: number): Gtk.Widget {
+    if (count < 2) return icon
+    const overlay = new Gtk.Overlay({ child: icon })
+    const dots = new Gtk.Box({ spacing: 2, halign: Gtk.Align.CENTER, valign: Gtk.Align.END, cssClasses: ["window-dots"], canTarget: false })
+    for (let i = 0; i < Math.min(count, 3); i++) dots.append(new Gtk.Box({ cssClasses: ["window-dot"], valign: Gtk.Align.CENTER, halign: Gtk.Align.CENTER }))
+    overlay.add_overlay(dots)
+    return overlay
 }
 
 export default function AppList() {
@@ -92,29 +102,15 @@ export default function AppList() {
                 const icon = app.icon.includes("/")
                     ? new Gtk.Image({ file: app.icon, pixelSize: 24 })
                     : new Gtk.Image({ iconName: app.icon })
-                btn.set_child(icon)
+                const windowCount = clients.filter(c => (c.class?.toLowerCase() || "").includes(app.matches)).length
+                btn.set_child(withDots(icon, windowCount))
+                if (windowCount > 1) btn.add_css_class("multi")
 
+                // Con varias ventanas elige la correcta (ver toggleAppWindows)
                 btn.connect("clicked", () => {
-                    const clients = hyprland.clients
-                    const existing = clients.find(c => (c.class?.toLowerCase() || "").includes(app.matches))
-                    const currentWorkspace = hyprland.focusedWorkspace
-
-                    if (!existing) {
-                        launchDetached(app.command)
-                        return
-                    }
-
-                    if (currentWorkspace && existing.workspace && existing.workspace.id === currentWorkspace.id) {
-                        const addr = existing.address.startsWith("0x") ? existing.address : `0x${existing.address}`
-                        hyprland.dispatch("movetoworkspacesilent", `special:minimized,address:${addr}`)
-                    } else if (existing.workspace && (existing.workspace.name || "").includes("minimized")) {
-                        const addr = existing.address.startsWith("0x") ? existing.address : `0x${existing.address}`
-                        const target = currentWorkspace ? String(currentWorkspace.id) : "+0"
-                        hyprland.dispatch("movetoworkspace", `${target},address:${addr}`)
-                        existing.focus()
-                    } else {
-                        existing.focus()
-                    }
+                    const wins = hyprland.clients.filter(c => (c.class?.toLowerCase() || "").includes(app.matches))
+                    if (wins.length === 0) launchDetached(app.command)
+                    else toggleAppWindows(wins)
                 })
 
                 attachAppMenu(btn, () => createContextMenu(btn, runningClient, app))
@@ -138,20 +134,7 @@ export default function AppList() {
 
                 btn.set_child(new Gtk.Image({ iconName: resolveAppIcon(client.class || "") }))
 
-                btn.connect("clicked", () => {
-                    const currentWorkspace = hyprland.focusedWorkspace
-                    if (currentWorkspace && client.workspace && client.workspace.id === currentWorkspace.id) {
-                        const addr = client.address.startsWith("0x") ? client.address : `0x${client.address}`
-                        hyprland.dispatch("movetoworkspacesilent", `special:minimized,address:${addr}`)
-                    } else if (client.workspace && (client.workspace.name || "").includes("minimized")) {
-                        const addr = client.address.startsWith("0x") ? client.address : `0x${client.address}`
-                        const target = currentWorkspace ? String(currentWorkspace.id) : "+0"
-                        hyprland.dispatch("movetoworkspace", `${target},address:${addr}`)
-                        client.focus()
-                    } else {
-                        client.focus()
-                    }
-                })
+                btn.connect("clicked", () => toggleAppWindows([client]))
 
                 attachAppMenu(btn, () => createContextMenu(btn, client))
                 container.append(btn)
