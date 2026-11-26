@@ -40,7 +40,7 @@ export function focusWindow(c: Client) {
 
 // Clic en el ícono de una app con varias ventanas: elige la que esperas.
 //   1. la enfocada es de esta app → se oculta
-//   2. hay una en este workspace → se enfoca (la usada más recientemente)
+//   2. hay una en pantalla (este workspace, p. ej. en mosaico) → se oculta
 //   3. hay alguna oculta → se restaura la última usada
 //   4. si no → se va a la más reciente, en su workspace
 export function toggleAppWindows(wins: Client[]) {
@@ -52,7 +52,7 @@ export function toggleAppWindows(wins: Client[]) {
     const current = focused && wins.find(c => c.address === focused.address)
     if (current) return hideWindow(current)
     const here = recent.find(c => c.workspace.id === wsId)
-    if (here) return focusWindow(here)
+    if (here) return hideWindow(here)
     const hidden = recent.find(isHidden)
     if (hidden) return focusWindow(hidden)
     focusWindow(recent[0])
